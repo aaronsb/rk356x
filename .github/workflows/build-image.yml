@@ -91,17 +91,30 @@ jobs:
       run: |
         wget -q https://buildroot.org/downloads/buildroot-${{ env.BUILDROOT_VERSION }}.tar.gz
         tar xzf buildroot-${{ env.BUILDROOT_VERSION }}.tar.gz
+        # Save cached dl directory if it exists
+        if [ -d buildroot/dl ]; then
+          mv buildroot/dl dl_cache
+        fi
+        rm -rf buildroot
         mv buildroot-${{ env.BUILDROOT_VERSION }} buildroot
+        # Restore cached dl directory
+        if [ -d dl_cache ]; then
+          mv dl_cache buildroot/dl
+        fi
         echo "✅ Buildroot extracted"
+        test -f buildroot/Makefile && echo "✓ Makefile exists" || echo "✗ Makefile MISSING!"
 
     - name: Load configuration
+      env:
+        BR2_EXTERNAL: ${{ github.workspace }}/external/jvl
       run: |
         cd buildroot
-        export BR2_EXTERNAL=../external/jvl
         make ${{ steps.config.outputs.board }}_defconfig
         echo "✅ Configuration loaded"
 
     - name: Validate configuration
+      env:
+        BR2_EXTERNAL: ${{ github.workspace }}/external/jvl
       run: |
         cd buildroot
         make show-info
@@ -109,6 +122,8 @@ jobs:
 
     - name: Build (if full-build)
       if: steps.config.outputs.build_type == 'full-build'
+      env:
+        BR2_EXTERNAL: ${{ github.workspace }}/external/jvl
       run: |
         cd buildroot
         make -j$(nproc)
