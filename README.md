@@ -15,9 +15,9 @@ Automated build system for creating production-ready Debian images for RK356X (R
 
 | Board | SoC | Manufacturer | Status |
 |-------|-----|--------------|--------|
-| Rock 3A | RK3568 | Radxa | ✅ Tested |
-| Quartz64 Model A | RK3566 | Pine64 | ✅ Tested |
-| NanoPi R5S | RK3568 | FriendlyELEC | ✅ Tested |
+| Rock 3A | RK3568 | Radxa | ⚠️ Untested |
+| Quartz64 Model A | RK3566 | Pine64 | ⚠️ Untested |
+| NanoPi R5S | RK3568 | FriendlyELEC | ⚠️ Untested |
 | Station M2 | RK3566 | Firefly | ⚠️ Untested |
 | RK3568 EVB | RK3568 | Generic | ⚠️ Untested |
 
