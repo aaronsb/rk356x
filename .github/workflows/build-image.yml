@@ -91,8 +91,11 @@ jobs:
       id: config
       run: |
         BOARD="${{ github.event.inputs.board || 'rock-3a' }}"
+        BUILD_TYPE="${{ github.event.inputs.build_type || 'full' }}"
         echo "board=${BOARD}" >> $GITHUB_OUTPUT
+        echo "build_type=${BUILD_TYPE}" >> $GITHUB_OUTPUT
         echo "Building for board: ${BOARD}"
+        echo "Build type: ${BUILD_TYPE}"
 
         # Load board-specific configuration
         if [ -f "config/boards/${BOARD}.conf" ]; then
@@ -114,31 +117,31 @@ jobs:
           ${{ runner.os }}-toolchain-
 
     - name: Build U-Boot
-      if: github.event.inputs.build_type == 'full' || github.event.inputs.build_type == 'uboot-only'
+      if: steps.config.outputs.build_type == 'full' || steps.config.outputs.build_type == 'uboot-only'
       continue-on-error: true
       run: |
         ./scripts/build-uboot.sh ${{ steps.config.outputs.board }}
 
     - name: Build Kernel
-      if: github.event.inputs.build_type == 'full' || github.event.inputs.build_type == 'kernel-only'
+      if: steps.config.outputs.build_type == 'full' || steps.config.outputs.build_type == 'kernel-only'
       continue-on-error: true
       run: |
         ./scripts/build-kernel.sh ${{ steps.config.outputs.board }}
 
     - name: Build Rootfs
-      if: github.event.inputs.build_type == 'full' || github.event.inputs.build_type == 'rootfs-only'
+      if: steps.config.outputs.build_type == 'full' || steps.config.outputs.build_type == 'rootfs-only'
       continue-on-error: true
       run: |
         sudo ./scripts/build-rootfs.sh ${{ steps.config.outputs.board }}
 
     - name: Assemble Image
-      if: github.event.inputs.build_type == 'full'
+      if: steps.config.outputs.build_type == 'full'
       continue-on-error: true
       run: |
         sudo ./scripts/assemble-image.sh ${{ steps.config.outputs.board }}
 
     - name: Calculate checksums
-      if: github.event.inputs.build_type == 'full'
+      if: steps.config.outputs.build_type == 'full'
       continue-on-error: true
       run: |
         cd output
@@ -146,7 +149,7 @@ jobs:
         cat SHA256SUMS
 
     - name: Upload artifacts
-      if: github.event.inputs.build_type == 'full'
+      if: steps.config.outputs.build_type == 'full'
       uses: actions/upload-artifact@v4
       with:
         name: rk356x-${{ steps.config.outputs.board }}-${{ github.sha }}
@@ -158,7 +161,7 @@ jobs:
         if-no-files-found: ignore
 
     - name: Upload U-Boot artifacts
-      if: github.event.inputs.build_type == 'uboot-only' || github.event.inputs.build_type == 'full'
+      if: steps.config.outputs.build_type == 'uboot-only' || steps.config.outputs.build_type == 'full'
       uses: actions/upload-artifact@v4
       with:
         name: uboot-${{ steps.config.outputs.board }}-${{ github.sha }}
@@ -168,7 +171,7 @@ jobs:
         if-no-files-found: ignore
 
     - name: Upload kernel artifacts
-      if: github.event.inputs.build_type == 'kernel-only' || github.event.inputs.build_type == 'full'
+      if: steps.config.outputs.build_type == 'kernel-only' || steps.config.outputs.build_type == 'full'
       uses: actions/upload-artifact@v4
       with:
         name: kernel-${{ steps.config.outputs.board }}-${{ github.sha }}
