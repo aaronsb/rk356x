@@ -45,6 +45,20 @@ This infrastructure supports embedded Linux development for RK-3568 based hardwa
    - Release Versioning System
    - Technical Documentation Package
 
+### Developer Guides
+
+**Getting Started:**
+- [Quick Reference](./dev/QUICK-REFERENCE.md) - ⚡ Start here! Build cheat sheet
+- [Build System Guide](./dev/BUILD.md) - Complete local build instructions
+- [GitHub Actions Workflow](./dev/GITHUB-ACTIONS.md) - CI/CD deep dive
+
+**Important:**
+- 🛡️ **Pushing to main only runs 2-minute config validation** (not full 60-min build)
+- 🏗️ **Full builds require manual trigger or release tag**
+- 📦 **Use `./scripts/release.sh` to create releases**
+
+See [RELEASES.md](./RELEASES.md) for release management details.
+
 ## Quick Reference
 
 ### Feature List
