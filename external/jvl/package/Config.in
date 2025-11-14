@@ -1,0 +1,5 @@
+# JVL Custom Packages
+
+# Custom packages will be added here as needed
+# Example:
+# source "$BR2_EXTERNAL_JVL_PATH/package/platform-app/Config.in"

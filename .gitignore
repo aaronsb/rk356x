@@ -2,6 +2,11 @@
 build/
 output/
 
+# Buildroot (tracked separately, only external tree is versioned)
+buildroot/
+!buildroot/.gitkeep
+buildroot-*.tar.gz
+
 # Temporary files
 *.tmp
 *.log
