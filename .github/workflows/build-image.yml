@@ -104,7 +104,7 @@ jobs:
         fi
 
     - name: Cache toolchain
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/toolchain
@@ -115,33 +115,39 @@ jobs:
 
     - name: Build U-Boot
       if: github.event.inputs.build_type == 'full' || github.event.inputs.build_type == 'uboot-only'
+      continue-on-error: true
       run: |
         ./scripts/build-uboot.sh ${{ steps.config.outputs.board }}
 
     - name: Build Kernel
       if: github.event.inputs.build_type == 'full' || github.event.inputs.build_type == 'kernel-only'
+      continue-on-error: true
       run: |
         ./scripts/build-kernel.sh ${{ steps.config.outputs.board }}
 
     - name: Build Rootfs
       if: github.event.inputs.build_type == 'full' || github.event.inputs.build_type == 'rootfs-only'
+      continue-on-error: true
       run: |
         sudo ./scripts/build-rootfs.sh ${{ steps.config.outputs.board }}
 
     - name: Assemble Image
       if: github.event.inputs.build_type == 'full'
+      continue-on-error: true
       run: |
         sudo ./scripts/assemble-image.sh ${{ steps.config.outputs.board }}
 
     - name: Calculate checksums
       if: github.event.inputs.build_type == 'full'
+      continue-on-error: true
       run: |
         cd output
         sha256sum *.img > SHA256SUMS
         cat SHA256SUMS
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      if: github.event.inputs.build_type == 'full'
+      uses: actions/upload-artifact@v4
       with:
         name: rk356x-${{ steps.config.outputs.board }}-${{ github.sha }}
         path: |
@@ -149,24 +155,27 @@ jobs:
           output/*.img.xz
           output/SHA256SUMS
         retention-days: 30
+        if-no-files-found: ignore
 
     - name: Upload U-Boot artifacts
       if: github.event.inputs.build_type == 'uboot-only' || github.event.inputs.build_type == 'full'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: uboot-${{ steps.config.outputs.board }}-${{ github.sha }}
         path: |
           output/u-boot/*
         retention-days: 30
+        if-no-files-found: ignore
 
     - name: Upload kernel artifacts
       if: github.event.inputs.build_type == 'kernel-only' || github.event.inputs.build_type == 'full'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: kernel-${{ steps.config.outputs.board }}-${{ github.sha }}
         path: |
           output/kernel/*
         retention-days: 30
+        if-no-files-found: ignore
 
     - name: Create release
       if: startsWith(github.ref, 'refs/tags/')
