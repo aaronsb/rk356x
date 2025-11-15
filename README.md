@@ -264,9 +264,12 @@ rk356x/
 ├── docs/                    # Documentation
 │   ├── dev/                 # Developer guides
 │   └── features/            # Feature specifications
-├── external/custom/            # Buildroot external tree
-│   └── configs/
-│       └── rk3568_custom_defconfig
+├── external/custom/         # Buildroot external tree (YOUR customizations)
+│   ├── configs/
+│   │   └── rk3568_custom_defconfig  # Board configuration
+│   ├── package/             # Custom packages go here
+│   ├── Config.in            # External tree config
+│   └── external.mk          # External tree makefile
 ├── rkbin/                   # Vendor blobs (submodule)
 ├── scripts/                 # Build automation
 │   ├── release.sh           # Remote build via GitHub Actions (creates tag)
@@ -275,6 +278,43 @@ rk356x/
 ├── build.sh                 # Local build only (no release)
 └── README.md                # This file
 ```
+
+### About `external/custom/`
+
+This is a **Buildroot external tree** - the place for all your customizations:
+
+**What it's for:**
+- ✅ Board-specific configurations (defconfigs)
+- ✅ Custom packages and applications
+- ✅ Patches for kernel/U-Boot
+- ✅ Root filesystem overlays
+- ✅ Custom build scripts
+
+**Why "custom"?**
+- Generic name for template usage
+- Fork this repo and add YOUR company's packages here
+- Keeps customizations separate from Buildroot core
+
+**Example customizations:**
+```
+external/custom/
+├── configs/
+│   └── rk3568_myboard_defconfig    # Your board config
+├── package/
+│   └── myapp/                      # Your application
+│       ├── Config.in
+│       ├── myapp.mk
+│       └── src/
+├── board/
+│   └── mycompany/                  # Board-specific files
+│       ├── rootfs-overlay/         # Files to copy to root
+│       └── post-build.sh          # Post-build scripts
+└── patches/
+    ├── linux/                     # Kernel patches
+    └── uboot/                     # U-Boot patches
+```
+
+See [Buildroot External Tree Documentation](https://buildroot.org/downloads/manual/manual.html#outside-br-custom) for details.
 
 ---
 
