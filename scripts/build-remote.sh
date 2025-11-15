@@ -14,7 +14,7 @@ echo "========================================${NC}"
 echo ""
 
 # Parse arguments
-BOARD="${1:-rk3568_jvl}"
+BOARD="${1:-rk3568_custom}"
 BUILD_TYPE="${2:-full-build}"
 
 echo -e "${BLUE}Configuration:${NC}"

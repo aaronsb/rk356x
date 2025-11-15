@@ -42,8 +42,8 @@ docker run --rm \
   apt-get update && \
   apt-get install -y build-essential libssl-dev libncurses-dev \
     bc rsync file wget cpio unzip python3 python3-pyelftools git && \
-  BR2_EXTERNAL=../external/jvl make rk3568_jvl_defconfig && \
-  FORCE_UNSAFE_CONFIGURE=1 BR2_EXTERNAL=../external/jvl make -j$(nproc)'
+  BR2_EXTERNAL=../external/custom make rk3568_custom_defconfig && \
+  FORCE_UNSAFE_CONFIGURE=1 BR2_EXTERNAL=../external/custom make -j$(nproc)'
 
 # 4. Find output
 ls -lh buildroot/output/images/
@@ -64,10 +64,10 @@ mv buildroot-2024.08.1 buildroot
 
 # 3. Load configuration
 cd buildroot
-BR2_EXTERNAL=../external/jvl make rk3568_jvl_defconfig
+BR2_EXTERNAL=../external/custom make rk3568_custom_defconfig
 
 # 4. Build (takes ~15-60 minutes depending on cores)
-BR2_EXTERNAL=../external/jvl make -j$(nproc)
+BR2_EXTERNAL=../external/custom make -j$(nproc)
 
 # 5. Find output
 ls -lh output/images/
@@ -92,7 +92,7 @@ gh workflow run "Build RK356X Image" \
 
 ### What Gets Built
 
-Our defconfig (`external/jvl/configs/rk3568_jvl_defconfig`) includes:
+Our defconfig (`external/custom/configs/rk3568_custom_defconfig`) includes:
 
 **Architecture:**
 - ARM64 Cortex-A55
@@ -119,11 +119,11 @@ Our defconfig (`external/jvl/configs/rk3568_jvl_defconfig`) includes:
 
 ```bash
 cd buildroot
-BR2_EXTERNAL=../external/jvl make menuconfig
+BR2_EXTERNAL=../external/custom make menuconfig
 
 # Save changes back to defconfig
-BR2_EXTERNAL=../external/jvl make savedefconfig
-cp defconfig ../external/jvl/configs/rk3568_jvl_defconfig
+BR2_EXTERNAL=../external/custom make savedefconfig
+cp defconfig ../external/custom/configs/rk3568_custom_defconfig
 ```
 
 ## Build Outputs
@@ -157,7 +157,7 @@ Times vary based on:
 
 Make sure `BR2_EXTERNAL` is set correctly:
 ```bash
-BR2_EXTERNAL=$PWD/../external/jvl make rk3568_jvl_defconfig
+BR2_EXTERNAL=$PWD/../external/custom make rk3568_custom_defconfig
 ```
 
 ### Clean Build
@@ -176,7 +176,7 @@ Downloads are cached in `buildroot/dl/`. If a download fails:
 rm buildroot/dl/packagename-*
 
 # Try build again
-BR2_EXTERNAL=../external/jvl make
+BR2_EXTERNAL=../external/custom make
 ```
 
 ### Out of Disk Space
@@ -294,7 +294,7 @@ aarch64-buildroot-linux-gnu-gcc myapp.c -o myapp
 
 ### Custom Packages
 
-See `external/jvl/package/` for adding custom packages to Buildroot.
+See `external/custom/package/` for adding custom packages to Buildroot.
 
 ## See Also
 

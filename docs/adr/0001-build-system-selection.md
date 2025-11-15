@@ -233,7 +233,7 @@ Minimal distribution using musl libc and busybox, with APK package manager.
 
 ### Deliverables
 
-- `buildroot/configs/rk3568_jvl_defconfig` - Board configuration
+- `buildroot/configs/rk3568_custom_defconfig` - Board configuration
 - `buildroot/board/jvl/rk3568/` - Board-specific files
 - `buildroot/board/jvl/rk3568/rootfs-overlay/` - Application overlay
 - Updated CI/CD workflow for Buildroot

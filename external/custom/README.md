@@ -5,7 +5,7 @@ This directory contains the Buildroot external tree for the JVL RK3568 platform.
 ## Structure
 
 ```
-external/jvl/
+external/custom/
 ├── Config.in              # External configuration entry point
 ├── external.desc          # External tree description
 ├── external.mk            # External makefile
@@ -15,7 +15,7 @@ external/jvl/
 │   ├── linux.config       # Kernel config fragment
 │   └── uboot.config       # U-Boot config fragment
 ├── configs/               # Board defconfigs
-│   └── rk3568_jvl_defconfig
+│   └── rk3568_custom_defconfig
 └── package/               # Custom packages
     └── Config.in
 ```
@@ -26,14 +26,14 @@ external/jvl/
 
 ```bash
 cd buildroot
-export BR2_EXTERNAL=../external/jvl
-make list-defconfigs  # Should show rk3568_jvl_defconfig
+export BR2_EXTERNAL=../external/custom
+make list-defconfigs  # Should show rk3568_custom_defconfig
 ```
 
 ### Building
 
 ```bash
-make rk3568_jvl_defconfig
+make rk3568_custom_defconfig
 make -j$(nproc)
 ```
 
@@ -49,7 +49,7 @@ make busybox-menuconfig  # BusyBox config
 ### Saving Configuration
 
 ```bash
-make savedefconfig BR2_DEFCONFIG=../external/jvl/configs/rk3568_jvl_defconfig
+make savedefconfig BR2_DEFCONFIG=../external/custom/configs/rk3568_custom_defconfig
 make linux-update-defconfig
 make uboot-update-defconfig
 ```
@@ -59,7 +59,7 @@ make uboot-update-defconfig
 Create a new directory in `package/`:
 
 ```bash
-external/jvl/package/mypackage/
+external/custom/package/mypackage/
 ├── Config.in
 ├── mypackage.mk
 └── mypackage.hash

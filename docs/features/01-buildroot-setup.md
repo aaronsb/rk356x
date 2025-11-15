@@ -36,7 +36,7 @@ tar xzf buildroot-2024.02.3.tar.gz
 mv buildroot-2024.02.3 buildroot
 
 # Create external tree for JVL customizations
-mkdir -p external/jvl/{board,configs,package}
+mkdir -p external/custom/{board,configs,package}
 
 # Document Buildroot version
 cat > buildroot/VERSION.txt << EOF
@@ -51,7 +51,7 @@ EOF
 
 - [ ] Buildroot extracted to `buildroot/` directory
 - [ ] Version documented in `buildroot/VERSION.txt`
-- [ ] External tree created in `external/jvl/`
+- [ ] External tree created in `external/custom/`
 - [ ] `make menuconfig` launches successfully
 
 ---
@@ -114,7 +114,7 @@ Kernel version: Custom Git repository
   URL: https://github.com/rockchip-linux/kernel.git
   Branch: stable-5.10-rk3568
 Kernel configuration: Using a custom config file
-  Path: ../external/jvl/board/rk3568/linux.config
+  Path: ../external/custom/board/rk3568/linux.config
 Device Tree Source: In-tree Device Tree
   DTB name: rk3568-evb  (will customize later)
 ```
@@ -142,17 +142,17 @@ System tools:
 
 ```bash
 # Save as defconfig
-make savedefconfig BR2_DEFCONFIG=../external/jvl/configs/rk3568_jvl_defconfig
+make savedefconfig BR2_DEFCONFIG=../external/custom/configs/rk3568_custom_defconfig
 
 # Copy to external tree
-cp .config ../external/jvl/configs/rk3568_jvl.config
+cp .config ../external/custom/configs/rk3568_jvl.config
 ```
 
 ### Validation
 
-- [ ] Configuration saved to `external/jvl/configs/rk3568_jvl_defconfig`
+- [ ] Configuration saved to `external/custom/configs/rk3568_custom_defconfig`
 - [ ] Settings match requirements above
-- [ ] Configuration loads: `make rk3568_jvl_defconfig BR2_EXTERNAL=../external/jvl`
+- [ ] Configuration loads: `make rk3568_custom_defconfig BR2_EXTERNAL=../external/custom`
 
 ---
 
@@ -178,7 +178,7 @@ U-Boot needs: OpenSSL
 
 ### U-Boot Additional Files
 
-Create `external/jvl/board/rk3568/uboot.config`:
+Create `external/custom/board/rk3568/uboot.config`:
 ```makefile
 # Additional U-Boot config options
 CONFIG_BOOTDELAY=1
@@ -188,7 +188,7 @@ CONFIG_BOOTCOMMAND="run distro_bootcmd"
 
 ### Rockchip Binary Blobs
 
-Create `external/jvl/board/rk3568/post-build.sh`:
+Create `external/custom/board/rk3568/post-build.sh`:
 ```bash
 #!/bin/bash
 # Fetch rkbin for BL31 and TPL
@@ -205,7 +205,7 @@ cp "${RKBIN_DIR}/bin/rk35/rk3568_ddr_1560MHz_v1.18.bin" "${BINARIES_DIR}/"
 
 Make executable:
 ```bash
-chmod +x external/jvl/board/rk3568/post-build.sh
+chmod +x external/custom/board/rk3568/post-build.sh
 ```
 
 ### Validation
@@ -227,10 +227,10 @@ Execute first Buildroot build to validate configuration.
 cd buildroot
 
 # Set external tree
-export BR2_EXTERNAL=../external/jvl
+export BR2_EXTERNAL=../external/custom
 
 # Load our config
-make rk3568_jvl_defconfig
+make rk3568_custom_defconfig
 
 # Build (this will take 30-60 minutes first time)
 make -j$(nproc)
@@ -430,14 +430,14 @@ Upon completion:
 ## Files Created
 
 ```
-external/jvl/
+external/custom/
 ├── board/rk3568/
 │   ├── linux.config
 │   ├── uboot.config
 │   ├── post-build.sh
 │   └── rootfs-overlay/
 ├── configs/
-│   └── rk3568_jvl_defconfig
+│   └── rk3568_custom_defconfig
 └── Config.in
 
 buildroot/

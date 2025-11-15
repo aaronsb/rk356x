@@ -83,12 +83,12 @@ if [ "$USE_DOCKER" = true ]; then
         echo ""
 
         echo "==> Loading configuration..."
-        BR2_EXTERNAL=../external/jvl make rk3568_jvl_defconfig
+        BR2_EXTERNAL=../external/custom make rk3568_custom_defconfig
         echo "✓ Configuration loaded"
         echo ""
 
         echo "==> Building (this takes 15-60 minutes)..."
-        FORCE_UNSAFE_CONFIGURE=1 BR2_EXTERNAL=../external/jvl make -j$(nproc)
+        FORCE_UNSAFE_CONFIGURE=1 BR2_EXTERNAL=../external/custom make -j$(nproc)
     '
 else
     echo "==> Building natively..."
@@ -117,12 +117,12 @@ else
 
     echo "==> Loading configuration..."
     cd buildroot
-    BR2_EXTERNAL=../external/jvl make rk3568_jvl_defconfig
+    BR2_EXTERNAL=../external/custom make rk3568_custom_defconfig
     echo "✓ Configuration loaded"
     echo ""
 
     echo "==> Building (this takes 15-60 minutes)..."
-    BR2_EXTERNAL=../external/jvl make -j$(nproc)
+    BR2_EXTERNAL=../external/custom make -j$(nproc)
     cd ..
 fi
 

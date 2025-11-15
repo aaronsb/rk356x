@@ -109,7 +109,7 @@ git push && git push --tags
   uses: actions/cache@v4
   with:
     path: buildroot/dl
-    key: buildroot-dl-${{ hashFiles('external/jvl/configs/*') }}
+    key: buildroot-dl-${{ hashFiles('external/custom/configs/*') }}
 ```
 
 **Why:** Source packages (~500MB) are cached between builds. Saves ~5-10 minutes on subsequent builds.
@@ -147,10 +147,10 @@ Without this, `mv` would nest directories incorrectly.
 ```yaml
 - name: Load configuration
   env:
-    BR2_EXTERNAL: ${{ github.workspace }}/external/jvl
+    BR2_EXTERNAL: ${{ github.workspace }}/external/custom
   run: |
     cd buildroot
-    make rk3568_jvl_defconfig
+    make rk3568_custom_defconfig
 ```
 
 **BR2_EXTERNAL:** Points Buildroot to our external tree containing custom defconfigs.
@@ -160,7 +160,7 @@ Without this, `mv` would nest directories incorrectly.
 ```yaml
 - name: Validate configuration
   env:
-    BR2_EXTERNAL: ${{ github.workspace }}/external/jvl
+    BR2_EXTERNAL: ${{ github.workspace }}/external/custom
   run: |
     cd buildroot
     make show-info
@@ -174,7 +174,7 @@ Without this, `mv` would nest directories incorrectly.
 - name: Build (if full-build)
   if: steps.config.outputs.build_type == 'full-build'
   env:
-    BR2_EXTERNAL: ${{ github.workspace }}/external/jvl
+    BR2_EXTERNAL: ${{ github.workspace }}/external/custom
   run: |
     cd buildroot
     make -j$(nproc)
@@ -301,7 +301,7 @@ gh run view <run-id> --log
 | Variable | Value | Purpose |
 |----------|-------|---------|
 | `BUILDROOT_VERSION` | `2024.02.3` | Buildroot version to download |
-| `BR2_EXTERNAL` | `$GITHUB_WORKSPACE/external/jvl` | Path to external tree |
+| `BR2_EXTERNAL` | `$GITHUB_WORKSPACE/external/custom` | Path to external tree |
 | `GITHUB_WORKSPACE` | `/home/runner/work/rk356x/rk356x` | Repository root |
 
 ## See Also

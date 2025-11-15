@@ -80,7 +80,7 @@ The RK356x family includes many variants. To customize for your specific board:
    Available boards: Rock 3A, NanoPi R5S, Radxa E25, ODROID-M1, BPI-R2 Pro, etc.
 
 2. **Update defconfig:**
-   Edit `external/jvl/configs/rk3568_jvl_defconfig`:
+   Edit `external/custom/configs/rk3568_custom_defconfig`:
    ```
    BR2_LINUX_KERNEL_INTREE_DTS_NAME="rockchip/rk3568-rock-3a"
    ```
@@ -217,8 +217,8 @@ mv buildroot-2024.08.1 buildroot
 
 # Build
 cd buildroot
-BR2_EXTERNAL=../external/jvl make rk3568_jvl_defconfig
-BR2_EXTERNAL=../external/jvl make -j$(nproc)
+BR2_EXTERNAL=../external/custom make rk3568_custom_defconfig
+BR2_EXTERNAL=../external/custom make -j$(nproc)
 ```
 
 See [docs/dev/BUILD.md](docs/dev/BUILD.md) for detailed native build instructions.
@@ -264,9 +264,9 @@ rk356x/
 ├── docs/                    # Documentation
 │   ├── dev/                 # Developer guides
 │   └── features/            # Feature specifications
-├── external/jvl/            # Buildroot external tree
+├── external/custom/            # Buildroot external tree
 │   └── configs/
-│       └── rk3568_jvl_defconfig
+│       └── rk3568_custom_defconfig
 ├── rkbin/                   # Vendor blobs (submodule)
 ├── scripts/                 # Build automation
 │   ├── release.sh           # Remote build via GitHub Actions (creates tag)
@@ -282,21 +282,21 @@ rk356x/
 
 ### Modify Packages
 
-Edit `external/jvl/configs/rk3568_jvl_defconfig` to add/remove packages:
+Edit `external/custom/configs/rk3568_custom_defconfig` to add/remove packages:
 
 ```bash
 # Interactive menu
 cd buildroot
-BR2_EXTERNAL=../external/jvl make menuconfig
+BR2_EXTERNAL=../external/custom make menuconfig
 
 # Save changes
-BR2_EXTERNAL=../external/jvl make savedefconfig
-cp defconfig ../external/jvl/configs/rk3568_jvl_defconfig
+BR2_EXTERNAL=../external/custom make savedefconfig
+cp defconfig ../external/custom/configs/rk3568_custom_defconfig
 ```
 
 ### Change Kernel Version
 
-Update in `rk3568_jvl_defconfig`:
+Update in `rk3568_custom_defconfig`:
 ```
 BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.6.62"
 ```

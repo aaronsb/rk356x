@@ -12,10 +12,10 @@ on:
       board:
         description: 'Board to build for'
         required: true
-        default: 'rk3568_jvl'
+        default: 'rk3568_custom'
         type: choice
         options:
-          - rk3568_jvl
+          - rk3568_custom
       build_type:
         description: 'Build type'
         required: true
@@ -67,7 +67,7 @@ jobs:
     - name: Set build configuration
       id: config
       run: |
-        BOARD="${{ github.event.inputs.board || 'rk3568_jvl' }}"
+        BOARD="${{ github.event.inputs.board || 'rk3568_custom' }}"
 
         # Auto-trigger full build on tags
         if [[ "${{ github.ref }}" == refs/tags/* ]]; then
@@ -86,7 +86,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: buildroot/dl
-        key: buildroot-dl-${{ hashFiles('external/jvl/configs/*') }}
+        key: buildroot-dl-${{ hashFiles('external/custom/configs/*') }}
         restore-keys: |
           buildroot-dl-
 
@@ -109,7 +109,7 @@ jobs:
 
     - name: Load configuration
       env:
-        BR2_EXTERNAL: ${{ github.workspace }}/external/jvl
+        BR2_EXTERNAL: ${{ github.workspace }}/external/custom
       run: |
         cd buildroot
         make ${{ steps.config.outputs.board }}_defconfig
@@ -117,7 +117,7 @@ jobs:
 
     - name: Validate configuration
       env:
-        BR2_EXTERNAL: ${{ github.workspace }}/external/jvl
+        BR2_EXTERNAL: ${{ github.workspace }}/external/custom
       run: |
         cd buildroot
         make show-info
@@ -126,7 +126,7 @@ jobs:
     - name: Build (if full-build)
       if: steps.config.outputs.build_type == 'full-build'
       env:
-        BR2_EXTERNAL: ${{ github.workspace }}/external/jvl
+        BR2_EXTERNAL: ${{ github.workspace }}/external/custom
       run: |
         cd buildroot
         make -j$(nproc)

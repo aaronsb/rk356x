@@ -111,7 +111,7 @@ Before creating a release, test the build locally:
 
 ```bash
 cd buildroot
-BR2_EXTERNAL=../external/jvl make rk3568_jvl_defconfig
+BR2_EXTERNAL=../external/custom make rk3568_custom_defconfig
 make -j$(nproc)
 ```
 

@@ -49,7 +49,7 @@ gh workflow run "Build RK356X Image" \
 
 ```bash
 cd buildroot
-BR2_EXTERNAL=../external/jvl make -j$(nproc)
+BR2_EXTERNAL=../external/custom make -j$(nproc)
 ```
 
 **Result:**
@@ -79,10 +79,10 @@ BR2_EXTERNAL=../external/jvl make -j$(nproc)
 ### Daily Development
 ```bash
 # Make changes
-vim external/jvl/configs/rk3568_jvl_defconfig
+vim external/custom/configs/rk3568_custom_defconfig
 
 # Test locally (optional)
-cd buildroot && BR2_EXTERNAL=../external/jvl make -j$(nproc)
+cd buildroot && BR2_EXTERNAL=../external/custom make -j$(nproc)
 
 # Push changes
 git add .
@@ -107,7 +107,7 @@ git push && git push --tags  # ← Triggers 60-min build
 ```bash
 # Option 1: Local (fastest feedback)
 cd buildroot
-BR2_EXTERNAL=../external/jvl make -j$(nproc)
+BR2_EXTERNAL=../external/custom make -j$(nproc)
 
 # Option 2: GitHub Actions (test workflow)
 gh workflow run "Build RK356X Image" \
