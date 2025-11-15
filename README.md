@@ -109,21 +109,96 @@ The RK356x family includes many variants. To customize for your specific board:
 
 ---
 
-## 🔧 Build Options
+## 🔧 Build Workflows
 
-### Option 1: One-Command Build (Recommended)
+This project supports three build workflows for different use cases:
+
+### Workflow 1: Local Build Only
+
+**Use when:** Testing changes, iterating quickly, personal use
 
 ```bash
 ./build.sh
 ```
 
-This script:
-1. Downloads Buildroot if needed
-2. Initializes git submodules (vendor blobs)
-3. Runs the build in a Docker container
-4. Outputs images to `buildroot/output/images/`
+**What it does:**
+- ✅ Builds locally in Docker (fast with your cores)
+- ✅ Creates images in `buildroot/output/images/`
+- ❌ Does NOT create GitHub release
+- ❌ Does NOT push to remote
 
-### Option 2: Native Build (Advanced)
+**Time:** 15-60 minutes (depending on cores)
+
+---
+
+### Workflow 2: Local Build + GitHub Release
+
+**Use when:** Creating official releases with local build artifacts
+
+```bash
+./scripts/local-release.sh [major|minor|patch]
+```
+
+**What it does:**
+- ✅ Builds locally in Docker
+- ✅ Bumps version number
+- ✅ Creates git tag
+- ✅ Creates GitHub release with YOUR local build artifacts
+- ✅ Permanent artifact storage
+
+**Time:** 15-60 minutes build + 1 minute upload
+
+**Example:**
+```bash
+# Create v0.1.1 with local build
+./scripts/local-release.sh patch
+
+# Create v0.2.0 with local build
+./scripts/local-release.sh minor
+```
+
+---
+
+### Workflow 3: Remote Build (GitHub Actions)
+
+**Use when:** CI/CD validation, testing workflow changes, or don't have local resources
+
+```bash
+./scripts/build-remote.sh [board] [build-type]
+```
+
+**What it does:**
+- ✅ Triggers build on GitHub Actions servers
+- ✅ Uses GitHub's 4-core runners
+- ✅ Uploads artifacts (30-day retention)
+- ❌ Does NOT create release (use workflow 2 for releases)
+
+**Time:** ~60 minutes
+
+**Example:**
+```bash
+# Trigger full build on GitHub
+./scripts/build-remote.sh rk3568_jvl full-build
+
+# Watch progress in real-time
+# (script will prompt you)
+```
+
+---
+
+### Quick Decision Guide
+
+| I want to... | Use |
+|--------------|-----|
+| Test my changes quickly | `./build.sh` |
+| Create an official release | `./scripts/local-release.sh patch` |
+| Validate changes in CI | `./scripts/build-remote.sh` |
+| Leverage my 32-core CPU | `./build.sh` or `./scripts/local-release.sh` |
+| Save local resources | `./scripts/build-remote.sh` |
+
+---
+
+### Advanced: Native Build (Without Docker)
 
 If you prefer building without Docker:
 
@@ -194,8 +269,10 @@ rk356x/
 │       └── rk3568_jvl_defconfig
 ├── rkbin/                   # Vendor blobs (submodule)
 ├── scripts/                 # Build automation
-│   └── release.sh
-├── build.sh                 # One-command build script
+│   ├── release.sh           # Remote build via GitHub Actions (creates tag)
+│   ├── local-release.sh     # Local build + GitHub release
+│   └── build-remote.sh      # Trigger remote GitHub Actions build
+├── build.sh                 # Local build only (no release)
 └── README.md                # This file
 ```
 
