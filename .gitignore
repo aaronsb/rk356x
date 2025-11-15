@@ -10,6 +10,7 @@ buildroot-*.tar.gz
 # Temporary files
 *.tmp
 *.log
+build.log
 *.swp
 *.swo
 *~

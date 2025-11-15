@@ -6,24 +6,70 @@ This guide explains how to build RK356X images locally and via GitHub Actions.
 
 The build system uses **Buildroot** to create minimal embedded Linux images for RK356X (RK3566/RK3568) processors. Buildroot compiles everything from source: toolchain, kernel, bootloader, and root filesystem.
 
+## Prerequisites
+
+Before building, ensure you have:
+
+1. **Git submodules initialized** (for vendor blobs):
+   ```bash
+   git submodule update --init --recursive
+   ```
+
+2. **Docker** (recommended) or native build dependencies
+
 ## Quick Start
 
-### Local Build
+### Option 1: Docker Build (Recommended)
+
+Docker ensures a consistent build environment matching GitHub Actions:
 
 ```bash
-# 1. Download Buildroot (if not already present)
-wget https://buildroot.org/downloads/buildroot-2024.02.3.tar.gz
-tar xzf buildroot-2024.02.3.tar.gz
-mv buildroot-2024.02.3 buildroot
+# 1. Clone and initialize submodules
+git clone https://github.com/aaronsb/rk356x.git
+cd rk356x
+git submodule update --init --recursive
 
-# 2. Load configuration
+# 2. Download and extract Buildroot
+wget https://buildroot.org/downloads/buildroot-2024.08.1.tar.gz
+tar xzf buildroot-2024.08.1.tar.gz
+mv buildroot-2024.08.1 buildroot
+
+# 3. Build with Docker (faster, isolated environment)
+docker run --rm \
+  -v $(pwd):/work \
+  -w /work/buildroot \
+  ubuntu:22.04 bash -c '\
+  apt-get update && \
+  apt-get install -y build-essential libssl-dev libncurses-dev \
+    bc rsync file wget cpio unzip python3 python3-pyelftools git && \
+  BR2_EXTERNAL=../external/jvl make rk3568_jvl_defconfig && \
+  FORCE_UNSAFE_CONFIGURE=1 BR2_EXTERNAL=../external/jvl make -j$(nproc)'
+
+# 4. Find output
+ls -lh buildroot/output/images/
+```
+
+### Option 2: Native Build
+
+```bash
+# 1. Install dependencies (Ubuntu/Debian)
+sudo apt-get update
+sudo apt-get install -y build-essential libssl-dev libncurses-dev \
+  bc rsync file wget cpio unzip python3 python3-pyelftools git
+
+# 2. Download Buildroot
+wget https://buildroot.org/downloads/buildroot-2024.08.1.tar.gz
+tar xzf buildroot-2024.08.1.tar.gz
+mv buildroot-2024.08.1 buildroot
+
+# 3. Load configuration
 cd buildroot
 BR2_EXTERNAL=../external/jvl make rk3568_jvl_defconfig
 
-# 3. Build (takes ~60 minutes)
+# 4. Build (takes ~15-60 minutes depending on cores)
 BR2_EXTERNAL=../external/jvl make -j$(nproc)
 
-# 4. Find output
+# 5. Find output
 ls -lh output/images/
 ```
 
@@ -51,13 +97,15 @@ Our defconfig (`external/jvl/configs/rk3568_jvl_defconfig`) includes:
 **Architecture:**
 - ARM64 Cortex-A55
 - glibc toolchain with C++ support
+- Buildroot 2024.08.1
 
 **Kernel:**
-- Linux 5.10.160
+- Linux 6.6.62 LTS
 - Device tree: `rockchip/rk3568-evb1-ddr4-v10.dtb`
 
 **Bootloader:**
-- U-Boot 2017.09 with SPL support
+- U-Boot 2024.07 (latest) with SPL support
+- Vendor blobs from rkbin (TPL for DRAM init, BL31 for ARM Trusted Firmware)
 
 **Init System:**
 - systemd
@@ -140,6 +188,86 @@ rm -rf buildroot/output
 
 # Remove downloaded sources (will re-download)
 rm -rf buildroot/dl
+```
+
+### U-Boot Build Fails: "Missing external blobs"
+
+**Error:**
+```
+Image 'simple-bin' is missing external blobs and is non-functional: rockchip-tpl atf-bl31
+```
+
+**Solution:**
+Ensure rkbin submodule is initialized:
+```bash
+git submodule update --init --recursive
+```
+
+### U-Boot Build Fails: "No such file or directory: rk3568_defconfig"
+
+**Error:**
+```
+cc1: fatal error: ./arch/../configs/rk3568_defconfig: No such file or directory
+```
+
+**Cause:**
+U-Boot 2024.07 uses `evb-rk3568_defconfig`, not `rk3568_defconfig`.
+
+**Solution:**
+The defconfig is already updated to use `BR2_TARGET_UBOOT_BOARD_DEFCONFIG="evb-rk3568"`.
+
+### Docker Build Fails: "you should not run configure as root"
+
+**Error:**
+```
+configure: error: you should not run configure as root
+```
+
+**Solution:**
+Add `FORCE_UNSAFE_CONFIGURE=1` to the build command (already included in Docker examples above).
+
+### U-Boot Build Fails: "No module named 'elftools'"
+
+**Error:**
+```
+binman: Node '/binman/simple-bin/fit': subnode 'images/@atf-SEQ': Failed to read ELF file: Python: No module named 'elftools'
+```
+
+**Cause:**
+U-Boot's binman tool needs the Python `pyelftools` module to process ELF binaries (like the BL31 blob).
+
+**Solution:**
+Install `python3-pyelftools`:
+```bash
+# Ubuntu/Debian
+sudo apt-get install python3-pyelftools
+
+# Or in Docker (already included in examples above)
+apt-get install -y python3-pyelftools
+```
+
+## Vendor Blobs (rkbin)
+
+RK3568 requires proprietary binary blobs from Rockchip for boot functionality:
+
+**Required Blobs:**
+- **TPL (Tiny Program Loader)**: `rk3568_ddr_1560MHz_v1.23.bin` - Initializes DRAM
+- **BL31 (ARM Trusted Firmware)**: `rk3568_bl31_v1.45.elf` - Handles secure world operations
+
+**Source:**
+The `rkbin` git submodule contains these blobs. They are automatically referenced during U-Boot build via `BR2_TARGET_UBOOT_CUSTOM_MAKEOPTS` in the defconfig.
+
+**Location:**
+```
+rkbin/bin/rk35/
+├── rk3568_ddr_1560MHz_v1.23.bin
+├── rk3568_bl31_v1.45.elf
+└── rk3568_bl32_v2.15.bin (optional OP-TEE)
+```
+
+**Important:** Always initialize git submodules before building:
+```bash
+git submodule update --init --recursive
 ```
 
 ## Advanced Topics
