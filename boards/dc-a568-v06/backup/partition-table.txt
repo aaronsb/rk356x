@@ -1,0 +1,17 @@
+Disk /dev/mmcblk0: 29.12 GiB, 31268536320 bytes, 61071360 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: gpt
+Disk identifier: 50330000-0000-4F66-8000-547100006054
+
+Device           Start      End  Sectors  Size Type
+/dev/mmcblk0p1   16384    32767    16384    8M unknown
+/dev/mmcblk0p2   32768    40959     8192    4M unknown
+/dev/mmcblk0p3   40960   303103   262144  128M unknown
+/dev/mmcblk0p4  303104   565247   262144  128M unknown
+/dev/mmcblk0p5  565248   630783    65536   32M unknown
+/dev/mmcblk0p6  630784   696319    65536   32M unknown
+/dev/mmcblk0p7  696320   958463   262144  128M unknown
+/dev/mmcblk0p8  958464  1060863   102400   50M unknown
+/dev/mmcblk0p9 1060864 61071295 60010432 28.6G unknown

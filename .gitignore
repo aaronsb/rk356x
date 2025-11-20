@@ -31,6 +31,7 @@ build.log
 *.elf
 *.bin
 *.dtb
+!boards/*/dtb/*.dtb
 *.dtbo
 
 # Editor and IDE files
@@ -84,3 +85,6 @@ tpl/
 !config/patches/u-boot/.gitkeep
 !config/rootfs-overlay/common/.gitkeep
 !config/scripts/.gitkeep
+
+# Downloaded tools
+tools/

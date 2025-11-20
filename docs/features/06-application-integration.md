@@ -4,10 +4,17 @@
 **Phase:** 5
 **Priority:** P0 (Critical Path)
 **Dependencies:** Features 1-11 (System Complete)
+**Status:** 📦 **USER IMPLEMENTATION** - Add to external/custom/ for your specific application
 
 ## Overview
 
 These features integrate the user platform application into the firmware image and create comprehensive hardware testing procedures.
+
+**Template Scope:** The template provides the base rootfs and build infrastructure. Your specific applications, hardware tests, and board bring-up procedures should be implemented in `external/custom/`:
+- Add your application packages to `external/custom/package/myapp/`
+- Add hardware tests to `external/custom/package/hw-tests/`
+- Create board-specific bring-up scripts in `external/custom/board/yourboard/`
+- Use rootfs overlays for custom configuration files
 
 ---
 

@@ -1,10 +1,10 @@
-# JVL RK-3568 Development Infrastructure Documentation
+# RK356X Buildroot Template Documentation
 
-This documentation covers the complete feature set and implementation tasks for the JVL RK-3568 development infrastructure supporting the user platform application.
+This documentation covers the complete feature set and implementation of the RK356X Buildroot template for embedded Linux development.
 
 ## Overview
 
-This infrastructure supports embedded Linux development for RK-3568 based hardware platforms, including bootloader configuration, kernel compilation, device enablement, application integration, and field update mechanisms.
+This template provides a production-ready foundation for building embedded Linux images for RK356X (RK3566/RK3568) boards using Buildroot. It includes the complete build infrastructure, CI/CD automation, and release management - ready for you to customize with your specific hardware and applications in `external/custom/`.
 
 ## Documentation Structure
 
@@ -63,50 +63,72 @@ See [RELEASES.md](./RELEASES.md) for release management details.
 
 ### Feature List
 
+**Template Foundation (Provided):**
 | # | Feature | Status | Category |
 |---|---------|--------|----------|
-| 1 | BSP Import & Validation | Planning | Foundation |
-| 2 | Supplier Image Boot Verification | Planning | Foundation |
-| 3 | Toolchain Installation & Version Control | Planning | Build Environment |
-| 4 | Kernel Build Configuration | Planning | Build Environment |
-| 5 | Device Tree, Drivers & Hardware Enablement | Planning | Hardware |
-| 6 | U-Boot Build & Boot Path Configuration | Planning | Hardware |
-| 7 | Root File System Construction | Planning | System |
-| 8 | Image Assembly System | Planning | System |
-| 9 | Full SD Update Mechanism | Planning | Updates |
-| 10 | USB Update Mechanism | Planning | Updates |
-| 11 | Partial Update Engine | Planning | Updates |
-| 12 | Application Integration | Planning | Application |
-| 13 | Hardware Interface Test Suite | Planning | Testing |
-| 14 | Board Bring-Up Test Procedures | Planning | Testing |
-| 15 | Build Reproducibility Framework | Planning | Infrastructure |
-| 16 | CI/CD Pipeline Construction | Planning | Infrastructure |
-| 17 | Automated Artifact Packaging | Planning | Infrastructure |
-| 18 | Release Versioning System | Planning | Release |
-| 19 | Technical Documentation Package | Planning | Release |
+| 3 | Toolchain Installation & Version Control | ✅ Complete | Build Environment |
+| 4 | Kernel Build Configuration | ✅ Complete | Build Environment |
+| 5 | Device Tree, Drivers & Hardware Enablement | ✅ Complete | Hardware |
+| 6 | U-Boot Build & Boot Path Configuration | ✅ Complete | Hardware |
+| 7 | Root File System Construction | ✅ Complete | System |
+| 8 | Image Assembly System | ✅ Complete | System |
+| 15 | Build Reproducibility Framework | ✅ Complete | Infrastructure |
+| 16 | CI/CD Pipeline Construction | ✅ Complete | Infrastructure |
+| 17 | Automated Artifact Packaging | ✅ Complete | Infrastructure |
+| 18 | Release Versioning System | ✅ Complete | Release |
+| 19 | Technical Documentation Package | 🚧 Core docs complete | Release |
 
-## Implementation Approach
+**User Implementation (Add to external/custom/):**
+| # | Feature | Scope | Category |
+|---|---------|-------|----------|
+| 1 | BSP Import & Validation | N/A - Using mainline | Foundation |
+| 2 | Supplier Image Boot Verification | N/A - Using mainline | Foundation |
+| 9 | Full SD Update Mechanism | User-specific | Updates |
+| 10 | USB Update Mechanism | User-specific | Updates |
+| 11 | Partial Update Engine | User-specific | Updates |
+| 12 | Application Integration | User-specific | Application |
+| 13 | Hardware Interface Test Suite | Board-specific | Testing |
+| 14 | Board Bring-Up Test Procedures | Board-specific | Testing |
 
-### Phase 1: Foundation (Features 1-4)
-Establish the basic build environment, import BSP, and validate the vendor reference implementation.
+## What's Included
 
-### Phase 2: Hardware Enablement (Features 5-6)
-Configure device tree, enable drivers, and establish bootloader functionality.
+### ✅ Production-Ready Build System
+- **Buildroot 2024.08.1** with external tree support
+- **Linux Kernel 6.6.62 LTS** - Mainline with ARM64 default config
+- **U-Boot 2024.07** - Latest bootloader with Rockchip vendor blobs
+- **systemd** - Modern init system with networking
+- **512MB rootfs** - Essential packages (SSH, networking tools, hardware utils)
 
-### Phase 3: System Assembly (Features 7-8)
-Build rootfs and create the image assembly pipeline.
+### ✅ Docker-Based Reproducible Builds
+- Ubuntu 22.04 build environment matching GitHub Actions
+- Fast local builds (15-20 min on 32 cores, 60 min on 4 cores)
+- Isolated, consistent builds across all platforms
 
-### Phase 4: Update Mechanisms (Features 9-11)
-Implement field update capabilities for full and partial system updates.
+### ✅ Three Build Workflows
+1. **Local Build** - Quick iteration (`./build.sh`)
+2. **Local + Release** - Build locally, publish to GitHub (`./scripts/local-release.sh`)
+3. **Remote Build** - Trigger GitHub Actions (`./scripts/build-remote.sh`)
 
-### Phase 5: Application Integration (Features 12-14)
-Integrate the user platform application and establish testing procedures.
+### ✅ Automated CI/CD Pipeline
+- Config validation on every push (2 minutes)
+- Full builds on tags and manual triggers
+- Artifact packaging and GitHub releases
+- 30-day artifact retention
 
-### Phase 6: Automation (Features 15-17)
-Build CI/CD infrastructure and ensure reproducible builds.
+### ✅ Release Management
+- Semantic versioning (v1.2.3)
+- Automated version bumping
+- Release artifact packaging
+- GitHub release creation
 
-### Phase 7: Release (Features 18-19)
-Establish versioning and complete documentation.
+### 📦 What You Add (external/custom/)
+The template is ready for you to customize:
+- **Your board-specific device trees**
+- **Your applications and services**
+- **Board bring-up procedures**
+- **Hardware test suites**
+- **Update mechanisms** (OTA, USB, SD card)
+- **Custom packages and configurations**
 
 ## Document Conventions
 
@@ -125,16 +147,35 @@ Establish versioning and complete documentation.
 
 ## Getting Started
 
-1. Review [Foundation & Validation](./features/01-foundation-validation.md) to understand the starting point
-2. Ensure prerequisites are met (see [Build Environment](./features/02-build-environment.md))
-3. Follow features in sequence, as many have dependencies
-4. Update feature status as work progresses
+### Quick Start
+```bash
+# Clone with submodules
+git clone --recursive https://github.com/aaronsb/rk356x.git
+cd rk356x
+
+# Build everything (15-60 minutes)
+./build.sh
+
+# Find your images
+ls -lh buildroot/output/images/
+```
+
+### Customize for Your Board
+1. Fork this repository
+2. Update device tree in `external/custom/configs/rk3568_custom_defconfig`:
+   ```
+   BR2_LINUX_KERNEL_INTREE_DTS_NAME="rockchip/rk3568-yourboard"
+   ```
+3. Add your packages to `external/custom/package/`
+4. Add board-specific files to `external/custom/board/`
+5. Build and test with `./build.sh`
 
 ## Related Documentation
 
-- [Build System Documentation](../BUILD.md) - Current build system for standard images
-- [Board Configurations](../config/README.md) - Board-specific configuration guide
-- [GitHub Actions](.github/workflows/build-image.yml) - Current CI/CD implementation
+- **[Quick Reference](./dev/QUICK-REFERENCE.md)** - Build cheat sheet and common commands
+- **[Build Guide](./dev/BUILD.md)** - Comprehensive build instructions
+- **[GitHub Actions](./dev/GITHUB-ACTIONS.md)** - CI/CD workflow documentation
+- **[Feature Specifications](./features/)** - Detailed feature documentation
 
 ## Terminology
 
@@ -145,20 +186,38 @@ Establish versioning and complete documentation.
 - **User Platform Application** - Primary application software running on the device
 - **Bring-Up** - Initial hardware validation and testing process
 
-## Contributing
+## Template Customization
 
-When implementing features:
+This is a **template repository** designed to be forked and customized:
 
-1. Create implementation branch: `feature/<number>-<short-name>`
-2. Update feature status in documentation
-3. Document decisions and changes
-4. Create pull request with completed work
-5. Update main documentation after merge
+### What to Customize
+1. **Board Configuration**: Update defconfig for your specific RK356X board
+2. **Device Trees**: Select or create DTB for your hardware
+3. **Packages**: Add your applications in `external/custom/package/`
+4. **Rootfs Overlay**: Add custom files in `external/custom/board/rootfs-overlay/`
+5. **Build Scripts**: Extend with board-specific post-build scripts
+6. **CI/CD**: Adapt workflows for your testing and release process
+
+### External Tree Structure
+```
+external/custom/
+├── configs/
+│   └── rk3568_custom_defconfig    # Your board config
+├── package/
+│   └── myapp/                     # Your applications
+├── board/
+│   └── mycompany/
+│       ├── rootfs-overlay/         # Files copied to rootfs
+│       └── post-build.sh          # Post-build scripts
+└── patches/
+    ├── linux/                     # Kernel patches
+    └── uboot/                     # U-Boot patches
+```
+
+See [Buildroot External Tree Documentation](https://buildroot.org/downloads/manual/manual.html#outside-br-custom) for complete details.
 
 ## Support
 
-For questions or issues:
-- Check feature-specific documentation
-- Review related documentation links
-- Consult with engineering lead
-- Document findings for future reference
+- **Issues**: Report bugs at https://github.com/aaronsb/rk356x/issues
+- **Documentation**: Check `docs/` for guides and references
+- **Buildroot Help**: See https://buildroot.org/support.html

@@ -4,10 +4,17 @@
 **Phase:** 4
 **Priority:** P1 (High Priority)
 **Dependencies:** Features 1-8 (System Assembly Complete)
+**Status:** 📦 **USER IMPLEMENTATION** - Add to external/custom/ for your use case
 
 ## Overview
 
 These features implement field update capabilities including full system updates via SD/USB and partial application updates.
+
+**Template Scope:** The template provides the foundation (bootable images, reproducible builds). Update mechanisms are highly use-case specific and should be implemented by users in `external/custom/` according to their specific requirements:
+- Industrial devices might use USB-based updates
+- IoT devices might use OTA updates
+- Development boards might use SD card updates
+- Production systems might need A/B partition schemes
 
 ---
 
