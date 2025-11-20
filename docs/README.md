@@ -105,7 +105,7 @@ See [RELEASES.md](./RELEASES.md) for release management details.
 - Isolated, consistent builds across all platforms
 
 ### ✅ Three Build Workflows
-1. **Local Build** - Quick iteration (`./build.sh`)
+1. **Local Build** - Quick iteration (`./scripts/buildroot-build.sh`)
 2. **Local + Release** - Build locally, publish to GitHub (`./scripts/local-release.sh`)
 3. **Remote Build** - Trigger GitHub Actions (`./scripts/build-remote.sh`)
 
@@ -154,7 +154,7 @@ git clone --recursive https://github.com/aaronsb/rk356x.git
 cd rk356x
 
 # Build everything (15-60 minutes)
-./build.sh
+./scripts/buildroot-build.sh
 
 # Find your images
 ls -lh buildroot/output/images/
@@ -168,7 +168,7 @@ ls -lh buildroot/output/images/
    ```
 3. Add your packages to `external/custom/package/`
 4. Add board-specific files to `external/custom/board/`
-5. Build and test with `./build.sh`
+5. Build and test with `./scripts/buildroot-build.sh`
 
 ## Related Documentation
 

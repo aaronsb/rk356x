@@ -6,11 +6,48 @@ set -e
 
 BUILDROOT_VERSION="2024.08.1"
 BUILDROOT_URL="https://buildroot.org/downloads/buildroot-${BUILDROOT_VERSION}.tar.gz"
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Parse arguments
+show_help() {
+    echo "Usage: $0 <command>"
+    echo ""
+    echo "Commands:"
+    echo "  build      Incremental build (fast, uses cached artifacts)"
+    echo "  clean      Full rebuild - removes output and rebuilds everything"
+    echo ""
+    echo "Examples:"
+    echo "  $0 build   # Quick rebuild after code changes"
+    echo "  $0 clean   # Fresh build (required after config changes)"
+    echo ""
+    exit 0
+}
+
+if [ -z "$1" ]; then
+    show_help
+elif [ "$1" = "build" ]; then
+    BUILD_MODE="incremental"
+elif [ "$1" = "clean" ] || [ "$1" = "rebuild" ]; then
+    BUILD_MODE="clean"
+elif [ "$1" = "help" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    show_help
+else
+    echo "Unknown command: $1"
+    echo ""
+    show_help
+fi
 
 echo "========================================"
 echo "RK356X Buildroot Builder"
 echo "========================================"
+echo ""
+
+if [ "$BUILD_MODE" = "clean" ]; then
+    echo "Mode: CLEAN REBUILD (removes output directory)"
+else
+    echo "Mode: Incremental build"
+fi
 echo ""
 
 # Check if Docker is available
@@ -48,6 +85,14 @@ else
     echo "✓ Buildroot already present"
 fi
 
+# Clean if requested
+if [ "$BUILD_MODE" = "clean" ]; then
+    echo ""
+    echo "==> Cleaning previous build..."
+    rm -rf "${PROJECT_ROOT}/buildroot/output"
+    echo "✓ Output directory removed"
+fi
+
 echo ""
 
 # Build
@@ -61,6 +106,8 @@ if [ "$USE_DOCKER" = true ]; then
     docker run --rm \
         -v "${PROJECT_ROOT}:/work" \
         -w /work/buildroot \
+        -e HOST_UID=$(id -u) \
+        -e HOST_GID=$(id -g) \
         ubuntu:22.04 bash -c '
         set -e
         echo "==> Installing build dependencies..."
@@ -78,17 +125,30 @@ if [ "$USE_DOCKER" = true ]; then
             python3 \
             python3-pyelftools \
             git \
+            sudo \
             > /dev/null 2>&1
         echo "✓ Dependencies installed"
         echo ""
 
-        echo "==> Loading configuration..."
-        BR2_EXTERNAL=../external/custom make rk3568_custom_defconfig
-        echo "✓ Configuration loaded"
+        # Create build user with host UID/GID so files are owned correctly
+        echo "==> Setting up build user..."
+        groupadd -g $HOST_GID builduser 2>/dev/null || true
+        useradd -u $HOST_UID -g $HOST_GID -m -s /bin/bash builduser 2>/dev/null || true
+        chown -R builduser:builduser /work 2>/dev/null || true
+        echo "✓ Build user ready (UID=$HOST_UID, GID=$HOST_GID)"
         echo ""
 
-        echo "==> Building (this takes 15-60 minutes)..."
-        FORCE_UNSAFE_CONFIGURE=1 BR2_EXTERNAL=../external/custom make -j$(nproc)
+        # Run build as the build user
+        su builduser -c "
+            cd /work/buildroot
+            echo \"==> Loading configuration...\"
+            BR2_EXTERNAL=../external/custom make rk3568_custom_defconfig
+            echo \"✓ Configuration loaded\"
+            echo \"\"
+
+            echo \"==> Building (this takes 15-60 minutes)...\"
+            BR2_EXTERNAL=../external/custom make -j\$(nproc)
+        "
     '
 else
     echo "==> Building natively..."

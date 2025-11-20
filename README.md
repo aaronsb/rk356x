@@ -14,7 +14,7 @@ git clone --recursive https://github.com/aaronsb/rk356x.git
 cd rk356x
 
 # Build everything (takes ~15-60 minutes)
-./build.sh
+./scripts/buildroot-build.sh
 
 # Find your images
 ls -lh buildroot/output/images/
@@ -87,7 +87,7 @@ The RK356x family includes many variants. To customize for your specific board:
 
 3. **Rebuild:**
    ```bash
-   ./build.sh
+   ./scripts/buildroot-build.sh
    ```
 
 **Need a different SoC?** RK3566 boards work similarly - just select the appropriate DTB and U-Boot config.
@@ -118,7 +118,7 @@ This project supports three build workflows for different use cases:
 **Use when:** Testing changes, iterating quickly, personal use
 
 ```bash
-./build.sh
+./scripts/buildroot-build.sh
 ```
 
 **What it does:**
@@ -190,10 +190,10 @@ This project supports three build workflows for different use cases:
 
 | I want to... | Use |
 |--------------|-----|
-| Test my changes quickly | `./build.sh` |
+| Test my changes quickly | `./scripts/buildroot-build.sh` |
 | Create an official release | `./scripts/local-release.sh patch` |
 | Validate changes in CI | `./scripts/build-remote.sh` |
-| Leverage my 32-core CPU | `./build.sh` or `./scripts/local-release.sh` |
+| Leverage my 32-core CPU | `./scripts/buildroot-build.sh` or `./scripts/local-release.sh` |
 | Save local resources | `./scripts/build-remote.sh` |
 
 ---
@@ -275,7 +275,6 @@ rk356x/
 │   ├── release.sh           # Remote build via GitHub Actions (creates tag)
 │   ├── local-release.sh     # Local build + GitHub release
 │   └── build-remote.sh      # Trigger remote GitHub Actions build
-├── build.sh                 # Local build only (no release)
 └── README.md                # This file
 ```
 
@@ -437,4 +436,4 @@ Individual components have their own licenses:
 
 ---
 
-**Ready to build? Just run `./build.sh` and grab a coffee!** ☕
+**Ready to build? Just run `./scripts/buildroot-build.sh` and grab a coffee!** ☕

@@ -64,7 +64,7 @@ echo ""
 # Check for required files
 log_info "Checking for required files..."
 REQUIRED_FILES=(
-    "${IMAGES_DIR}/idbloader.img"
+    "${UBOOT_BUILD_DIR}/idbloader.img"
     "${UBOOT_BUILD_DIR}/u-boot.itb"
     "${IMAGES_DIR}/Image"
     "${IMAGES_DIR}/${BOARD_DTB}"
@@ -74,7 +74,7 @@ REQUIRED_FILES=(
 for f in "${REQUIRED_FILES[@]}"; do
     if [ ! -f "$f" ]; then
         log_error "Required file not found: $f"
-        log_error "Run ./build.sh first to build the images"
+        log_error "Run ./scripts/buildroot-build.sh first to build the images"
         exit 1
     fi
 done
@@ -295,7 +295,7 @@ sudo chmod +x "${MOUNT_ROOTFS}/usr/local/bin/setup-emmc"
 
 # Write bootloader to SD card
 log_info "Writing bootloader..."
-sudo dd if="${IMAGES_DIR}/idbloader.img" of="$SD_DEVICE" seek=64 conv=notrunc bs=512 status=none
+sudo dd if="${UBOOT_BUILD_DIR}/idbloader.img" of="$SD_DEVICE" seek=64 conv=notrunc bs=512 status=none
 sudo dd if="${UBOOT_BUILD_DIR}/u-boot.itb" of="$SD_DEVICE" seek=16384 conv=notrunc bs=512 status=none
 
 # Sync
