@@ -31,6 +31,8 @@ Comparison of vendor 4.19 kernel vs our 6.1 kernel device support.
 | MIPI DSI 0 | fe060000 | Present | ❌ Not implemented | |
 | MIPI DSI 1 | fe070000 | Present | ❌ Not implemented | |
 | eDP | fe0c0000 | Present | ❌ Not implemented | |
+| LVDS (via TC358775) | I2C | ✅ Working | ❌ Not implemented | Toshiba MIPI-to-LVDS bridge |
+| LVDS (via GM8775C) | I2C | ✅ Working | ❌ Not implemented | Alt MIPI-to-LVDS bridge |
 
 ## Camera / Media
 
@@ -99,11 +101,22 @@ Comparison of vendor 4.19 kernel vs our 6.1 kernel device support.
 
 | Device | Address | Vendor Status | Our Status | Notes |
 |--------|---------|---------------|------------|-------|
-| I2S 0-3 | fe400000+ | Present | ❌ Not implemented | |
+| I2S 0-3 | fe400000+ | ✅ Working | ❌ Not implemented | |
 | PDM | fe440000 | Present | ❌ Not implemented | Digital mic |
-| SPDIF | fe460000 | Present | ❌ Not implemented | |
+| SPDIF | fe460000 | ✅ Working | ❌ Not implemented | |
 | Audio PWM | fe470000 | Present | ❌ Not implemented | |
 | VAD | fe450000 | Present | ❌ Not implemented | Voice Activity |
+| RK809 Codec | I2C0 | ✅ Working | ❌ Not implemented | PMIC audio codec |
+
+## I2C Peripherals
+
+| Device | Bus | Vendor Status | Our Status | Notes |
+|--------|-----|---------------|------------|-------|
+| RK809 PMIC | I2C0 | ✅ Working | ❌ Not implemented | Power management IC |
+| RK809 Audio Codec | I2C0 | ✅ Working | ❌ Not implemented | Part of PMIC |
+| Goodix GT9XX | I2C1/2 | ✅ Working | ❌ Not implemented | Touchscreen controller |
+| MXC6655XA | I2C4/5 | ✅ Working | ❌ Not implemented | Accelerometer/G-sensor |
+| LT6911UXC | I2C4 | Present | ❌ Not implemented | HDMI to MIPI bridge |
 
 ## Other Peripherals
 
@@ -115,6 +128,9 @@ Comparison of vendor 4.19 kernel vs our 6.1 kernel device support.
 | Watchdog | fe600000 | Present | ⚠️ Untested | |
 | OTP | fe38c000 | Present | ⚠️ Untested | One-time programmable |
 | RNG | fe388000 | Present | ⚠️ Untested | Random number gen |
+| TRNG | fe388000 | ✅ Working | ⚠️ Untested | True random number gen |
+| DFI (DDR Monitor) | fe230000 | ✅ Working | ⚠️ Untested | Memory bandwidth monitor |
+| DMC (Mem Controller) | - | ✅ Working | ⚠️ Untested | DRAM freq scaling |
 
 ---
 
