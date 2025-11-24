@@ -27,7 +27,7 @@ BR2_LINUX_KERNEL_CUSTOM_REPO_URL="https://github.com/rockchip-linux/kernel.git"
 BR2_LINUX_KERNEL_CUSTOM_REPO_VERSION="develop-6.1"
 BR2_LINUX_KERNEL_DEFCONFIG="rockchip_linux"
 BR2_LINUX_KERNEL_DTS_SUPPORT=y
-BR2_LINUX_KERNEL_CUSTOM_DTS_PATH="../external/custom/board/rk3568/dts/rk3568-dc-a568.dts"
+BR2_LINUX_KERNEL_CUSTOM_DTS_PATH="../external/custom/board/rk3568/dts/rockchip/rk3568-dc-a568.dts"
 
 # Rootfs overlay
 BR2_ROOTFS_OVERLAY="../external/custom/board/rk3568/rootfs-overlay"
