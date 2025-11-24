@@ -56,6 +56,17 @@
 		vin-supply = <&vcc3v3_sys>;
 	};
 
+	/* SD card IO voltage (simplified - vendor uses PMIC LDO) */
+	vccio_sd: vccio-sd {
+		compatible = "regulator-fixed";
+		regulator-name = "vccio_sd";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&vcc3v3_sys>;
+	};
+
 	/* Core logic supply (typically 0.9V, using fixed regulator) */
 	vdd_logic: vdd-logic {
 		compatible = "regulator-fixed";
@@ -123,12 +134,14 @@
 &sdmmc0 {
 	bus-width = <4>;
 	cap-sd-highspeed;
-	cd-gpios = <&gpio0 RK_PA4 GPIO_ACTIVE_LOW>;
+	cap-mmc-highspeed;
+	broken-cd;
 	disable-wp;
 	pinctrl-names = "default";
-	pinctrl-0 = <&sdmmc0_bus4 &sdmmc0_clk &sdmmc0_cmd &sdmmc0_det>;
-	sd-uhs-sdr50;
+	pinctrl-0 = <&sdmmc0_bus4 &sdmmc0_clk &sdmmc0_cmd>;
+	sd-uhs-sdr104;
 	vmmc-supply = <&vcc3v3_sys>;
+	vqmmc-supply = <&vccio_sd>;
 	status = "okay";
 };
 
@@ -150,20 +163,17 @@
 		     &gmac1m0_clkinout>;
 	snps,reset-gpio = <&gpio3 RK_PA1 GPIO_ACTIVE_LOW>;
 	snps,reset-active-low;
-	snps,reset-delays-us = <0 20000 100000>;
+	snps,reset-delays-us = <0 50000 200000>;
 	tx_delay = <0x4f>;
 	rx_delay = <0x2f>;
 	status = "okay";
+};
 
-	mdio1 {
-		compatible = "snps,dwmac-mdio";
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		rgmii_phy1: ethernet-phy@0 {
-			compatible = "ethernet-phy-id001c.c942", "ethernet-phy-ieee802.3-c22";
-			reg = <0>;
-		};
+/* MDIO bus - PHY configuration */
+&mdio1 {
+	rgmii_phy1: ethernet-phy@0 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		reg = <0>;
 	};
 };
 
