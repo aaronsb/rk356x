@@ -20,14 +20,13 @@
 
 ### PHY Configuration
 - **PHY Mode**: RGMII (Reduced Gigabit MII)
-- **PHY Chip**: Realtek RTL8211F (OUI 0x1EDD11)
-- **PHY IDs**: 001c.c942 (Realtek RTL8211F)
-- **PHY Addresses**: 0, 1, 2, 3 (four PHYs detected)
+- **PHY Chip**: Maxio MAE0621A (PHY ID 0x7b744411)
 - **Active PHY**: Address 0
 - **Reset GPIO**: GPIO3_A1 (gpio3 pin 1)
 - **Reset Delays**: 0, 20ms, 100ms
 - **Reset Active Low**: Yes
 - **PHY Supply**: vcc3v3-phy (3.3V fixed regulator)
+- **Driver**: maxio.c (from CoreELEC, requires vendor-specific init)
 
 ### Clock Configuration
 - **Clock Mode**: INPUT (clock comes FROM PHY, not output)
@@ -58,7 +57,7 @@ All pinmux on GPIO3 (multiplexing mode 3):
 |---------|-------------|-------------|
 | MAC Controller | gmac0 (0xfe2a0000) | gmac1 (0xfe010000) |
 | PHY Mode | RMII (100Mbps) | RGMII (1Gbps) |
-| PHY Chip | Motorcomm YT8512 | Realtek RTL8211F |
+| PHY Chip | Motorcomm YT8512 | Maxio MAE0621A |
 | Clock Mode | OUTPUT (to PHY) | INPUT (from PHY) |
 | Clock Rate | 50MHz | 125MHz |
 | TX Delay | 0x3c (60) | 0x4f (79) |
@@ -70,20 +69,21 @@ All pinmux on GPIO3 (multiplexing mode 3):
 ### Ethernet Drivers
 - `stmmac` - Synopsys MAC driver
 - `dwmac-rk` - Rockchip GMAC platform driver
-- `realtek` - Realtek PHY driver (CONFIG_REALTEK_PHY)
+- `maxio` - Maxio MAE0621A PHY driver (CONFIG_MAXIO_PHY)
 - `libphy` - Generic PHY library
 
 ### PHY Driver Details
-The Realtek RTL8211F PHY requires:
+The Maxio MAE0621A PHY requires:
 ```
-CONFIG_REALTEK_PHY=y
+CONFIG_MAXIO_PHY=y
 ```
 
-Driver file: `drivers/net/phy/realtek.c`
-- Supports RTL8211F (PHY ID 0x001cc916)
+Driver file: `external/custom/patches/linux/maxio.c` (from CoreELEC)
+- PHY ID 0x7b744411
 - Gigabit capable
 - RGMII interface support
-- Auto-negotiation support
+- Requires vendor-specific clock initialization (maxio_mae0621a_clk_init)
+- Generic PHY driver does NOT work - requires full config_init sequence
 
 ## eMMC Partition Layout
 
@@ -114,15 +114,21 @@ Located in `/home/aaron/Projects/jvl/rk356x/boards/sz3568-v1.2/backup/`:
 ## Next Steps
 
 1. ✅ Extract and analyze vendor device tree
-2. ⏳ Create custom device tree for Buildroot
-3. ⏳ Configure kernel with Realtek PHY driver
-4. ⏳ Build custom firmware
-5. ⏳ Test boot from SD card (NOT eMMC)
-6. ⏳ Verify ethernet functionality
+2. ✅ Create custom device tree for Buildroot
+3. ✅ Configure kernel with Maxio MAE0621A PHY driver
+4. ✅ Build custom firmware
+5. ✅ Test boot from SD card (NOT eMMC)
+6. ✅ Verify ethernet functionality (1Gbps working!)
+7. ✅ SD card reader working (fixed in 6.1 kernel!)
+8. ⏳ Add WiFi support (RTL8723DS)
+9. ⏳ Test HDMI/display output
+10. ⏳ Test USB host/device modes
+11. ⏳ Add remaining peripherals as needed
 
 ## Notes
 
 - Do NOT flash to eMMC until fully tested on SD card
-- Vendor firmware uses kernel 4.19.232, we use 6.1 BSP
-- Vendor uses systemd (Ubuntu), we can use systemd or other init
-- PHY driver must support RTL8211F specifically
+- Vendor firmware uses kernel 4.19.232, we use 6.1.118 LTS
+- Vendor uses systemd (Ubuntu), we use BusyBox init
+- MAE0621A PHY requires CoreELEC out-of-tree driver
+- SD card reader broken on 4.19, works on 6.1
