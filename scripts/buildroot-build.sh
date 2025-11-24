@@ -11,22 +11,47 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Parse arguments
 show_help() {
+    echo "========================================"
+    echo "RK356X Buildroot Builder"
+    echo "========================================"
+    echo ""
     echo "Usage: $0 [board] <command>"
     echo ""
-    echo "Boards:"
-    echo "  rk3568_custom    DC-A568-V06 board (default)"
-    echo "  rk3568_sz3568    SZ3568-V1.2 board"
+    echo "📋 Available Boards:"
+
+    # Dynamically discover boards from configs
+    if [ -d "${PROJECT_ROOT}/external/custom/configs" ]; then
+        for config in "${PROJECT_ROOT}/external/custom/configs"/*_defconfig; do
+            if [ -f "$config" ]; then
+                board_name=$(basename "$config" _defconfig)
+                case "$board_name" in
+                    rk3568_custom)
+                        echo "  ${board_name}    DC-A568-V06 (RMII ethernet, default)"
+                        ;;
+                    rk3568_sz3568)
+                        echo "  ${board_name}    SZ3568-V1.2 (RGMII ethernet)"
+                        ;;
+                    *)
+                        echo "  ${board_name}"
+                        ;;
+                esac
+            fi
+        done
+    fi
+
     echo ""
-    echo "Commands:"
+    echo "⚙️  Build Commands:"
     echo "  build          Incremental build (fast, uses cached artifacts)"
     echo "  linux-rebuild  Rebuild kernel and device tree only"
     echo "  clean          Full rebuild - removes output and rebuilds everything"
     echo ""
-    echo "Examples:"
-    echo "  $0 build                      # Build DC-A568 (default)"
-    echo "  $0 rk3568_sz3568 build        # Build SZ3568"
-    echo "  $0 rk3568_sz3568 linux-rebuild  # Rebuild SZ3568 kernel"
-    echo "  $0 rk3568_custom clean        # Clean build DC-A568"
+    echo "📚 Examples:"
+    echo "  $0 build                         # Build DC-A568 (default)"
+    echo "  $0 rk3568_sz3568 build           # Build SZ3568"
+    echo "  $0 rk3568_sz3568 linux-rebuild   # Rebuild SZ3568 kernel only"
+    echo "  $0 rk3568_custom clean           # Clean build DC-A568"
+    echo ""
+    echo "💡 Tip: Run without arguments to see this help menu"
     echo ""
     exit 0
 }
@@ -40,6 +65,7 @@ if [[ "$1" =~ ^rk3568_ ]]; then
     shift
 fi
 
+# Show help if no arguments
 if [ -z "$1" ]; then
     show_help
 elif [ "$1" = "build" ]; then
@@ -51,7 +77,7 @@ elif [ "$1" = "clean" ] || [ "$1" = "rebuild" ]; then
 elif [ "$1" = "help" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     show_help
 else
-    echo "Unknown command: $1"
+    echo "❌ Unknown command: $1"
     echo ""
     show_help
 fi
