@@ -1,0 +1,27 @@
+#!/bin/sh
+# Generate /etc/issue with current system info
+
+IP_ADDR=$(ip -4 addr show end0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
+[ -z "$IP_ADDR" ] && IP_ADDR="(no IP)"
+
+KERNEL=$(uname -r)
+HOSTNAME=$(hostname)
+
+cat > /run/issue << EOF
+
+  ____  _____  _____  ____   __    ___
+ / ___||__  / |___ / | ___| / /_  ( _ )
+ \\___ \\  / /    |_ \\ |___ \\| '_ \\ / _ \\
+  ___) |/ /_   ___) | ___) | (_) | (_) |
+ |____//____|_|____/_|____/ \\___/ \\___/
+        Rockchip RK3568 Board
+   CompanyName (replace with yours)
+
+Kernel:  ${KERNEL}
+Host:    ${HOSTNAME}
+IP:      ${IP_ADDR}
+
+EOF
+
+# Link to /etc/issue
+ln -sf /run/issue /etc/issue
