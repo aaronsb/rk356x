@@ -11,29 +11,73 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Parse arguments
 show_help() {
-    echo "Usage: $0 <command>"
+    echo "========================================"
+    echo "RK356X Buildroot Builder"
+    echo "========================================"
     echo ""
-    echo "Commands:"
-    echo "  build      Incremental build (fast, uses cached artifacts)"
-    echo "  clean      Full rebuild - removes output and rebuilds everything"
+    echo "Usage: $0 [board] <command>"
     echo ""
-    echo "Examples:"
-    echo "  $0 build   # Quick rebuild after code changes"
-    echo "  $0 clean   # Fresh build (required after config changes)"
+    echo "📋 Available Boards:"
+
+    # Dynamically discover boards from configs
+    if [ -d "${PROJECT_ROOT}/external/custom/configs" ]; then
+        for config in "${PROJECT_ROOT}/external/custom/configs"/*_defconfig; do
+            if [ -f "$config" ]; then
+                board_name=$(basename "$config" _defconfig)
+                case "$board_name" in
+                    rk3568_custom)
+                        echo "  ${board_name}    DC-A568-V06 (RMII ethernet, default)"
+                        ;;
+                    rk3568_sz3568)
+                        echo "  ${board_name}    SZ3568-V1.2 (RGMII ethernet)"
+                        ;;
+                    *)
+                        echo "  ${board_name}"
+                        ;;
+                esac
+            fi
+        done
+    fi
+
+    echo ""
+    echo "⚙️  Build Commands:"
+    echo "  build          Incremental build (fast, uses cached artifacts)"
+    echo "  linux-rebuild  Rebuild kernel and device tree only"
+    echo "  clean          Full rebuild - removes output and rebuilds everything"
+    echo ""
+    echo "📚 Examples:"
+    echo "  $0 build                         # Build DC-A568 (default)"
+    echo "  $0 rk3568_sz3568 build           # Build SZ3568"
+    echo "  $0 rk3568_sz3568 linux-rebuild   # Rebuild SZ3568 kernel only"
+    echo "  $0 rk3568_custom clean           # Clean build DC-A568"
+    echo ""
+    echo "💡 Tip: Run without arguments to see this help menu"
     echo ""
     exit 0
 }
 
+# Default board
+BOARD_DEFCONFIG="rk3568_custom"
+
+# Check if first argument is a board name
+if [[ "$1" =~ ^rk3568_ ]]; then
+    BOARD_DEFCONFIG="$1"
+    shift
+fi
+
+# Show help if no arguments
 if [ -z "$1" ]; then
     show_help
 elif [ "$1" = "build" ]; then
     BUILD_MODE="incremental"
+elif [ "$1" = "linux-rebuild" ]; then
+    BUILD_MODE="linux-rebuild"
 elif [ "$1" = "clean" ] || [ "$1" = "rebuild" ]; then
     BUILD_MODE="clean"
 elif [ "$1" = "help" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     show_help
 else
-    echo "Unknown command: $1"
+    echo "❌ Unknown command: $1"
     echo ""
     show_help
 fi
@@ -42,9 +86,12 @@ echo "========================================"
 echo "RK356X Buildroot Builder"
 echo "========================================"
 echo ""
+echo "Board: ${BOARD_DEFCONFIG}"
 
 if [ "$BUILD_MODE" = "clean" ]; then
     echo "Mode: CLEAN REBUILD (removes output directory)"
+elif [ "$BUILD_MODE" = "linux-rebuild" ]; then
+    echo "Mode: Linux kernel rebuild"
 else
     echo "Mode: Incremental build"
 fi
@@ -91,6 +138,35 @@ if [ "$BUILD_MODE" = "clean" ]; then
     echo "==> Cleaning previous build..."
     rm -rf "${PROJECT_ROOT}/buildroot/output"
     echo "✓ Output directory removed"
+fi
+
+# Auto-detect DTS changes in incremental mode
+if [ "$BUILD_MODE" = "incremental" ] && [ -d "${PROJECT_ROOT}/buildroot/output" ]; then
+    echo ""
+    echo "==> Checking for device tree changes..."
+
+    # Find all DTS files in external directory
+    DTS_FILES=$(find "${PROJECT_ROOT}/external" -name "*.dts" -o -name "*.dtsi" 2>/dev/null || true)
+
+    # Check if any DTS file is newer than the last kernel build
+    KERNEL_MARKER="${PROJECT_ROOT}/buildroot/output/build/linux-develop-6.1/.stamp_built"
+    NEED_LINUX_REBUILD=false
+
+    if [ -f "$KERNEL_MARKER" ]; then
+        while IFS= read -r dts_file; do
+            if [ -n "$dts_file" ] && [ "$dts_file" -nt "$KERNEL_MARKER" ]; then
+                echo "  • DTS change detected: $(basename $dts_file)"
+                NEED_LINUX_REBUILD=true
+            fi
+        done <<< "$DTS_FILES"
+
+        if [ "$NEED_LINUX_REBUILD" = true ]; then
+            echo "✓ DTS changes detected - will rebuild kernel"
+            BUILD_MODE="linux-rebuild"
+        else
+            echo "✓ No DTS changes detected"
+        fi
+    fi
 fi
 
 echo ""
@@ -142,12 +218,17 @@ if [ "$USE_DOCKER" = true ]; then
         su builduser -c "
             cd /work/buildroot
             echo \"==> Loading configuration...\"
-            BR2_EXTERNAL=../external/custom make rk3568_custom_defconfig
+            BR2_EXTERNAL=../external/custom make '"${BOARD_DEFCONFIG}"'_defconfig
             echo \"✓ Configuration loaded\"
             echo \"\"
 
-            echo \"==> Building (this takes 15-60 minutes)...\"
-            BR2_EXTERNAL=../external/custom make -j\$(nproc)
+            if [ \"'"$BUILD_MODE"'\" = \"linux-rebuild\" ]; then
+                echo \"==> Rebuilding kernel and device tree...\"
+                BR2_EXTERNAL=../external/custom make linux-rebuild -j\$(nproc)
+            else
+                echo \"==> Building (this takes 15-60 minutes)...\"
+                BR2_EXTERNAL=../external/custom make -j\$(nproc)
+            fi
         "
     '
 else
@@ -177,12 +258,17 @@ else
 
     echo "==> Loading configuration..."
     cd buildroot
-    BR2_EXTERNAL=../external/custom make rk3568_custom_defconfig
+    BR2_EXTERNAL=../external/custom make ${BOARD_DEFCONFIG}_defconfig
     echo "✓ Configuration loaded"
     echo ""
 
-    echo "==> Building (this takes 15-60 minutes)..."
-    BR2_EXTERNAL=../external/custom make -j$(nproc)
+    if [ "$BUILD_MODE" = "linux-rebuild" ]; then
+        echo "==> Rebuilding kernel and device tree..."
+        BR2_EXTERNAL=../external/custom make linux-rebuild -j$(nproc)
+    else
+        echo "==> Building (this takes 15-60 minutes)..."
+        BR2_EXTERNAL=../external/custom make -j$(nproc)
+    fi
     cd ..
 fi
 
