@@ -163,16 +163,15 @@
 		     &gmac1m0_clkinout>;
 	snps,reset-gpio = <&gpio3 RK_PA1 GPIO_ACTIVE_LOW>;
 	snps,reset-active-low;
-	snps,reset-delays-us = <0 50000 200000>;
+	snps,reset-delays-us = <0 20000 100000>;
 	tx_delay = <0x4f>;
-	rx_delay = <0x2f>;
 	status = "okay";
 };
 
 /* MDIO bus - PHY configuration */
 &mdio1 {
 	rgmii_phy1: ethernet-phy@0 {
-		compatible = "ethernet-phy-ieee802.3-c22";
+		compatible = "ethernet-phy-id7b74.4411", "ethernet-phy-ieee802.3-c22";
 		reg = <0>;
 	};
 };
