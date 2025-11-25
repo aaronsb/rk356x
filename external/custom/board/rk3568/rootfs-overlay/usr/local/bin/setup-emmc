@@ -1,0 +1,140 @@
+#!/bin/sh
+set -e
+
+# Setup eMMC - Provisions the internal storage
+# Run this after booting from SD card
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+
+echo "========================================"
+echo "eMMC Setup Script"
+echo "========================================"
+echo ""
+
+# Detect devices
+# SD card is what we booted from (root device)
+ROOT_DEV=$(findmnt -n -o SOURCE /)
+case "$ROOT_DEV" in
+    *mmcblk0*)
+        SD_DEV="/dev/mmcblk0"
+        EMMC_DEV="/dev/mmcblk1"
+        ;;
+    *mmcblk1*)
+        SD_DEV="/dev/mmcblk1"
+        EMMC_DEV="/dev/mmcblk0"
+        ;;
+    *)
+        log_error "Cannot determine SD/eMMC devices"
+        exit 1
+        ;;
+esac
+
+log_info "SD card: ${SD_DEV}"
+log_info "eMMC: ${EMMC_DEV}"
+echo ""
+
+# Confirm
+log_warn "This will ERASE all data on ${EMMC_DEV}"
+printf "Continue? (y/N) "
+read REPLY
+case "$REPLY" in
+    y|Y) ;;
+    *)
+        log_error "Cancelled"
+        exit 1
+        ;;
+esac
+
+# Mount boot partition
+mkdir -p /boot
+if ! mountpoint -q /boot; then
+    mount "${SD_DEV}p1" /boot
+fi
+BOOT_MOUNT="/boot"
+
+# Find DTB name from extlinux.conf
+DTB_NAME=$(grep "fdt /" "${BOOT_MOUNT}/extlinux/extlinux.conf" | sed 's/.*fdt \///' | tr -d ' ')
+CONSOLE=$(grep "console=" "${BOOT_MOUNT}/extlinux/extlinux.conf" | sed 's/.*console=\([^ ]*\).*/\1/')
+LABEL=$(grep "^label" "${BOOT_MOUNT}/extlinux/extlinux.conf" | awk '{print $2}')
+
+log_info "DTB: ${DTB_NAME}"
+log_info "Console: ${CONSOLE}"
+log_info "Label: ${LABEL}"
+echo ""
+
+# Partition eMMC
+log_info "Partitioning eMMC..."
+# Use fdisk since parted may not be available
+{
+    echo g      # Create GPT
+    echo n      # New partition
+    echo 1      # Partition 1
+    echo 32768  # Start sector (16MiB)
+    echo 557055 # End sector (~272MiB)
+    echo n      # New partition
+    echo 2      # Partition 2
+    echo 557056 # Start sector
+    echo        # Default end (rest of disk)
+    echo w      # Write
+} | fdisk "${EMMC_DEV}" > /dev/null 2>&1
+
+sleep 1
+
+# Format
+log_info "Formatting partitions..."
+mkfs.ext4 -F -L BOOT "${EMMC_DEV}p1" > /dev/null
+mkfs.ext4 -F -L rootfs "${EMMC_DEV}p2" > /dev/null
+
+# Mount
+log_info "Mounting eMMC partitions..."
+mkdir -p /mnt/emmc_boot /mnt/emmc_rootfs
+mount "${EMMC_DEV}p1" /mnt/emmc_boot
+mount "${EMMC_DEV}p2" /mnt/emmc_rootfs
+
+# Copy boot files
+log_info "Copying kernel and DTB..."
+cp "${BOOT_MOUNT}/Image" /mnt/emmc_boot/
+cp "${BOOT_MOUNT}/${DTB_NAME}" /mnt/emmc_boot/
+
+# Create extlinux.conf for eMMC
+log_info "Creating boot configuration..."
+mkdir -p /mnt/emmc_boot/extlinux
+cat > /mnt/emmc_boot/extlinux/extlinux.conf << EOF
+default ${LABEL}
+timeout 3
+
+label ${LABEL}
+    kernel /Image
+    fdt /${DTB_NAME}
+    append console=${CONSOLE} root=${EMMC_DEV}p2 rootwait rw
+EOF
+
+# Copy rootfs
+log_info "Copying root filesystem (this may take a while)..."
+cd /
+tar --exclude='./dev' --exclude='./proc' --exclude='./sys' --exclude='./tmp' --exclude='./run' --exclude='./mnt' --exclude='./boot' -cf - . | tar -xf - -C /mnt/emmc_rootfs/
+
+# Create essential directories
+mkdir -p /mnt/emmc_rootfs/{dev,proc,sys,tmp,run,mnt,boot}
+
+# Unmount
+log_info "Unmounting..."
+umount /mnt/emmc_boot
+umount /mnt/emmc_rootfs
+sync
+
+echo ""
+log_info "========================================"
+log_info "eMMC setup complete!"
+log_info "========================================"
+echo ""
+log_info "Remove SD card and reboot to boot from eMMC"
+echo ""
