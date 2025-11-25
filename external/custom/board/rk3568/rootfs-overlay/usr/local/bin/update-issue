@@ -1,0 +1,131 @@
+#!/bin/sh
+# Generate /etc/issue with current system info
+
+# Wait a bit for network to come up fully
+sleep 2
+
+# Network - auto-detect ethernet interface (end0 or end1)
+ETH_IF=""
+for iface in end0 end1 eth0 eth1; do
+    [ -d "/sys/class/net/$iface" ] && ETH_IF="$iface" && break
+done
+
+if [ -n "$ETH_IF" ]; then
+    IP_ADDR=$(ip -4 addr show "$ETH_IF" 2>/dev/null | awk '/inet / {print $2}' | cut -d'/' -f1 | head -1)
+    ETH_SPEED=$(cat "/sys/class/net/$ETH_IF/speed" 2>/dev/null)
+else
+    IP_ADDR=""
+    ETH_SPEED=""
+fi
+
+# Status LED: Blue (work) = network OK, off = no network
+# Note: The "red" LED GPIO doesn't control a visible LED on this board
+if [ -n "$IP_ADDR" ] && [ "$IP_ADDR" != "--" ]; then
+    # Network up - blue LED on
+    echo 1 > /sys/class/leds/work/brightness 2>/dev/null
+else
+    # Network down - blue LED off
+    echo 0 > /sys/class/leds/work/brightness 2>/dev/null
+fi
+
+[ -z "$IP_ADDR" ] && IP_ADDR="--"
+[ -z "$ETH_SPEED" ] || [ "$ETH_SPEED" = "-1" ] && ETH_SPEED="--"
+
+# System
+KERNEL=$(uname -r)
+HOSTNAME=$(hostname)
+# BusyBox uptime doesn't support -p, parse manually
+UPTIME_SEC=$(awk '{print int($1)}' /proc/uptime)
+UPTIME_MIN=$((UPTIME_SEC / 60))
+if [ "$UPTIME_MIN" -lt 60 ]; then
+    UPTIME="${UPTIME_MIN}m"
+else
+    UPTIME="$((UPTIME_MIN / 60))h $((UPTIME_MIN % 60))m"
+fi
+MEM_TOTAL=$(awk '/MemTotal/ {printf "%d", $2/1024}' /proc/meminfo)
+MEM_FREE=$(awk '/MemAvailable/ {printf "%d", $2/1024}' /proc/meminfo)
+
+# Hardware detection
+USB_COUNT=$(lsusb 2>/dev/null | wc -l)
+HDMI_STATUS=$(cat /sys/class/drm/card0-HDMI-A-1/status 2>/dev/null || echo "--")
+WIFI_STATUS="no driver"
+lsmod 2>/dev/null | grep -q 8723ds && WIFI_STATUS="ready"
+[ -d /sys/class/net/wlan0 ] && WIFI_STATUS="up"
+
+# Framebuffer resolution
+FB_RES=$(cat /sys/class/graphics/fb0/virtual_size 2>/dev/null | tr ',' 'x')
+[ -z "$FB_RES" ] && FB_RES="--"
+
+# WiFi networks (top 5 by signal strength)
+WIFI_NETWORKS=""
+if [ -d /sys/class/net/wlan0 ]; then
+    ip link set wlan0 up 2>/dev/null
+    sleep 1
+    WIFI_NETWORKS=$(iw dev wlan0 scan 2>/dev/null | awk '
+        /^BSS/ { bss=$2 }
+        /SSID:/ {
+            ssid="";
+            for(i=2;i<=NF;i++) ssid=ssid (i>2?" ":"") $i
+            # Skip empty SSIDs, keep everything else (including unicode)
+            if (length(ssid) > 0 && length(ssid) < 30)
+                valid_ssid=ssid
+            else
+                valid_ssid=""
+        }
+        /signal:/ {
+            if (valid_ssid != "")
+                printf "%6.1f dBm  %s\n", $2, valid_ssid
+        }
+    ' | sort -rn | tail -5 | sort -n)
+fi
+
+# Storage
+EMMC_SIZE=$(lsblk -b /dev/mmcblk0 2>/dev/null | awk 'NR==2 {printf "%.1f", $4/1024/1024/1024}')
+SD_SIZE=$(lsblk -b /dev/mmcblk1 2>/dev/null | awk 'NR==2 {printf "%.1f", $4/1024/1024/1024}')
+
+cat > /run/issue << 'BANNER'
+
+MP""""""`MM M""""""""`M d8888b. 888888P .d8888P .d888b.
+M  mmmmm..M Mmmmmm   .M     `88 88'     88'     Y8' `8P
+M.      `YM MMMMP  .MMM  aaad8' 88baaa. 88baaa. d8bad8b
+MMMMMMM.  M MMP  .MMMMM     `88     `88 88` `88 88` `88
+M. .MMM'  M M' .MMMMMMM     .88      88 8b. .d8 8b. .88
+Mb.     .dM M         M d88888P d88888P `Y888P' Y88888P
+MMMMMMMMMMM MMMMMMMMMMM
+               Rockchip RK3568 Board
+         CompanyName (replace with yours)
+
+BANNER
+
+# Use printf for fixed-width columns
+{
+    echo ""
+    printf " %-14s %-18s %-14s %s\n" "System" "" "Hardware" ""
+    printf " %-14s %-18s %-14s %s\n" "------" "" "--------" ""
+    printf " %-14s %-18s %-14s %s\n" "Kernel:" "$KERNEL" "Ethernet:" "${ETH_SPEED} Mbps"
+    printf " %-14s %-18s %-14s %s\n" "Host:" "$HOSTNAME" "HDMI:" "$HDMI_STATUS"
+    printf " %-14s %-18s %-14s %s\n" "Uptime:" "$UPTIME" "Display:" "$FB_RES"
+    printf " %-14s %-18s %-14s %s\n" "Memory:" "${MEM_FREE}/${MEM_TOTAL} MB" "WiFi:" "$WIFI_STATUS"
+    printf " %-14s %-18s %-14s %s\n" "IP:" "$IP_ADDR" "USB:" "${USB_COUNT} devices"
+    printf " %-14s %-18s %-14s %s\n" "" "" "eMMC:" "${EMMC_SIZE} GB"
+    printf " %-14s %-18s %-14s %s\n" "" "" "SD Card:" "${SD_SIZE} GB"
+} >> /run/issue
+
+if [ -n "$WIFI_NETWORKS" ]; then
+    {
+        echo ""
+        echo " WiFi Networks:"
+        echo "$WIFI_NETWORKS" | sed 's/^/  /'
+    } >> /run/issue
+fi
+
+echo "" >> /run/issue
+
+# Link to /etc/issue
+ln -sf /run/issue /etc/issue
+
+# Refresh the console display (clear and restart getty to show new banner)
+if [ -e /dev/tty1 ]; then
+    clear > /dev/tty1 2>/dev/null
+    systemctl restart getty@tty1.service 2>/dev/null
+fi
