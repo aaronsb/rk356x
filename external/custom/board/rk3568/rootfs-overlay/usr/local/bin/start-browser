@@ -12,8 +12,8 @@ export XDG_RUNTIME_DIR=/run/user/$(id -u)
 mkdir -p "$XDG_RUNTIME_DIR"
 chmod 0700 "$XDG_RUNTIME_DIR"
 
-# Start weston in background
-weston --backend=drm-backend.so --tty=1 &
+# Start weston in background with GL renderer for hardware acceleration
+weston --backend=drm-backend.so --renderer=gl --tty=1 &
 WESTON_PID=$!
 
 # Wait for weston to start
