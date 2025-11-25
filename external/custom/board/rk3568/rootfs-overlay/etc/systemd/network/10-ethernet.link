@@ -1,7 +1,7 @@
 # Persistent MAC address for ethernet
 # Generates consistent MAC from machine-id + interface name
 [Match]
-OriginalName=end0
+OriginalName=end*
 
 [Link]
 MACAddressPolicy=persistent

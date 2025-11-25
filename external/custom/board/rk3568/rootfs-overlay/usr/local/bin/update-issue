@@ -4,10 +4,20 @@
 # Wait a bit for network to come up fully
 sleep 2
 
-# Network
-IP_ADDR=$(ip -4 addr show end0 2>/dev/null | awk '/inet / {print $2}' | cut -d'/' -f1 | head -1)
+# Network - auto-detect ethernet interface (end0 or end1)
+ETH_IF=""
+for iface in end0 end1 eth0 eth1; do
+    [ -d "/sys/class/net/$iface" ] && ETH_IF="$iface" && break
+done
+
+if [ -n "$ETH_IF" ]; then
+    IP_ADDR=$(ip -4 addr show "$ETH_IF" 2>/dev/null | awk '/inet / {print $2}' | cut -d'/' -f1 | head -1)
+    ETH_SPEED=$(cat "/sys/class/net/$ETH_IF/speed" 2>/dev/null)
+else
+    IP_ADDR=""
+    ETH_SPEED=""
+fi
 [ -z "$IP_ADDR" ] && IP_ADDR="--"
-ETH_SPEED=$(cat /sys/class/net/end0/speed 2>/dev/null)
 [ -z "$ETH_SPEED" ] || [ "$ETH_SPEED" = "-1" ] && ETH_SPEED="--"
 
 # System
