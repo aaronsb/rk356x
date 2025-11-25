@@ -1,0 +1,20 @@
+[Unit]
+Description=Browser Kiosk Mode
+After=systemd-user-sessions.service
+Wants=systemd-user-sessions.service
+
+[Service]
+Type=simple
+User=root
+TTY=/dev/tty1
+PAMName=login
+Environment=XDG_SESSION_TYPE=wayland
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+ExecStart=/usr/local/bin/start-browser
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
