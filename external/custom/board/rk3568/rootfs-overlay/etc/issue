@@ -1,13 +1,19 @@
 
-  ____  _____  _____  ____   __    ___
- / ___||__  / |___ / | ___| / /_  ( _ )
- \___ \  / /    |_ \ |___ \| '_ \ / _ \
-  ___) |/ /_   ___) | ___) | (_) | (_) |
- |____//____|_|____/_|____/ \___/ \___/
-        Rockchip RK3568 Board
-   CompanyName (replace with yours)
+MP""""""`MM M""""""""`M d8888b. 888888P .d8888P .d888b.
+M  mmmmm..M Mmmmmm   .M     `88 88'     88'     Y8' `8P
+M.      `YM MMMMP  .MMM  aaad8' 88baaa. 88baaa. d8bad8b
+MMMMMMM.  M MMP  .MMMMM     `88     `88 88` `88 88` `88
+M. .MMM'  M M' .MMMMMMM     .88      88 8b. .d8 8b. .88
+Mb.     .dM M         M d88888P d88888P `Y888P' Y88888P
+MMMMMMMMMMM MMMMMMMMMMM
+               Rockchip RK3568 Board
+         CompanyName (replace with yours)
 
-Kernel: \r
-Host:   \n
-TTY:    \l
+ System                          Hardware Status
+ ------                          ---------------
+ Kernel:  \r                     Ethernet: (check after boot)
+ Host:    \n                     HDMI:     (check after boot)
+ TTY:     \l                     WiFi:     (check after boot)
+
+ Waiting for network to display full status...
 
