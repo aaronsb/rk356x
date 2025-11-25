@@ -1,0 +1,13 @@
+[Unit]
+Description=Set MAC address from CPU serial
+DefaultDependencies=no
+Before=network-pre.target systemd-networkd.service
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/set-mac-from-serial
+RemainAfterExit=yes
+
+[Install]
+WantedBy=sysinit.target

@@ -1,0 +1,25 @@
+#!/bin/sh
+# Generate a consistent MAC address from CPU serial number
+# This ensures the same board always gets the same MAC across reflashes
+
+SERIAL=$(grep -m1 Serial /proc/cpuinfo | awk '{print $3}')
+
+if [ -z "$SERIAL" ]; then
+    echo "Warning: No CPU serial found, using random MAC"
+    exit 0
+fi
+
+# Generate MAC from last 6 hex chars of serial, with local admin bit set
+# Format: 02:xx:xx:xx:xx:xx (02 = locally administered, unicast)
+MAC="02:$(echo "$SERIAL" | tail -c 11 | sed 's/\(..\)/\1:/g' | sed 's/:$//')"
+
+# Find ethernet interface
+for iface in end0 end1 eth0 eth1; do
+    if [ -d "/sys/class/net/$iface" ]; then
+        ip link set "$iface" down
+        ip link set "$iface" address "$MAC"
+        ip link set "$iface" up
+        echo "Set $iface MAC to $MAC (from serial $SERIAL)"
+        break
+    fi
+done
