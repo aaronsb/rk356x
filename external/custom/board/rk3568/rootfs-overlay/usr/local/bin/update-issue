@@ -17,6 +17,18 @@ else
     IP_ADDR=""
     ETH_SPEED=""
 fi
+
+# Status LEDs: Blue (work) = network OK, Red = no network
+if [ -n "$IP_ADDR" ] && [ "$IP_ADDR" != "--" ]; then
+    # Network up - blue LED on, red LED off
+    echo 1 > /sys/class/leds/work/brightness 2>/dev/null
+    echo 0 > /sys/class/leds/red/brightness 2>/dev/null
+else
+    # Network down - red LED on, blue LED off
+    echo 0 > /sys/class/leds/work/brightness 2>/dev/null
+    echo 1 > /sys/class/leds/red/brightness 2>/dev/null
+fi
+
 [ -z "$IP_ADDR" ] && IP_ADDR="--"
 [ -z "$ETH_SPEED" ] || [ "$ETH_SPEED" = "-1" ] && ETH_SPEED="--"
 
