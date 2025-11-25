@@ -219,6 +219,7 @@ if [ "$USE_DOCKER" = true ]; then
             python3-pyelftools \
             git \
             sudo \
+            ca-certificates \
             | grep -E "^(Get:|Hit:|Fetched|Reading|Setting up|Processing|Unpacking)" || true
         echo "✓ Dependencies installed"
         echo ""
