@@ -29,6 +29,7 @@ BR2_LINUX_KERNEL_DEFCONFIG="rockchip_linux"
 BR2_LINUX_KERNEL_DTS_SUPPORT=y
 BR2_LINUX_KERNEL_CUSTOM_DTS_PATH="../external/custom/board/rk3568/dts/rockchip/rk3568-sz3568.dts"
 BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="../external/custom/board/rk3568/kernel.config"
+BR2_LINUX_KERNEL_PATCH="../external/custom/patches/linux"
 
 # Rootfs overlay
 BR2_ROOTFS_OVERLAY="../external/custom/board/rk3568/rootfs-overlay"

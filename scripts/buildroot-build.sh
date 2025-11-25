@@ -43,6 +43,7 @@ show_help() {
     echo "⚙️  Build Commands:"
     echo "  build          Incremental build (fast, uses cached artifacts)"
     echo "  linux-rebuild  Rebuild kernel and device tree only"
+    echo "  clean-host     Remove host tools only (fixes Docker/native path conflicts)"
     echo "  clean          Full rebuild - removes output and rebuilds everything"
     echo ""
     echo "📚 Examples:"
@@ -72,6 +73,8 @@ elif [ "$1" = "build" ]; then
     BUILD_MODE="incremental"
 elif [ "$1" = "linux-rebuild" ]; then
     BUILD_MODE="linux-rebuild"
+elif [ "$1" = "clean-host" ]; then
+    BUILD_MODE="clean-host"
 elif [ "$1" = "clean" ] || [ "$1" = "rebuild" ]; then
     BUILD_MODE="clean"
 elif [ "$1" = "help" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
@@ -90,6 +93,8 @@ echo "Board: ${BOARD_DEFCONFIG}"
 
 if [ "$BUILD_MODE" = "clean" ]; then
     echo "Mode: CLEAN REBUILD (removes output directory)"
+elif [ "$BUILD_MODE" = "clean-host" ]; then
+    echo "Mode: Clean host tools (fixes path conflicts)"
 elif [ "$BUILD_MODE" = "linux-rebuild" ]; then
     echo "Mode: Linux kernel rebuild"
 else
@@ -140,6 +145,16 @@ if [ "$BUILD_MODE" = "clean" ]; then
     echo "✓ Output directory removed"
 fi
 
+# Clean host tools only (fixes Docker/native path conflicts)
+if [ "$BUILD_MODE" = "clean-host" ]; then
+    echo ""
+    echo "==> Cleaning host tools (keeps kernel and target builds)..."
+    rm -rf "${PROJECT_ROOT}/buildroot/output/host"
+    rm -rf "${PROJECT_ROOT}/buildroot/output/build/host-"*
+    echo "✓ Host tools removed"
+    BUILD_MODE="incremental"  # Continue with build after cleaning
+fi
+
 # Auto-detect DTS changes in incremental mode
 if [ "$BUILD_MODE" = "incremental" ] && [ -d "${PROJECT_ROOT}/buildroot/output" ]; then
     echo ""
@@ -181,6 +196,8 @@ if [ "$USE_DOCKER" = true ]; then
 
     docker run --rm \
         -v "${PROJECT_ROOT}:/work" \
+        -v rk356x-apt-cache:/var/cache/apt \
+        -v rk356x-apt-lib:/var/lib/apt \
         -w /work/buildroot \
         -e HOST_UID=$(id -u) \
         -e HOST_GID=$(id -g) \
@@ -224,6 +241,9 @@ if [ "$USE_DOCKER" = true ]; then
 
             if [ \"'"$BUILD_MODE"'\" = \"linux-rebuild\" ]; then
                 echo \"==> Rebuilding kernel and device tree...\"
+                # Touch stamp files to prevent re-patching when only rebuilding
+                touch /work/buildroot/output/build/linux-develop-6.1/.stamp_patched 2>/dev/null || true
+                touch /work/buildroot/output/build/linux-headers-develop-6.1/.stamp_patched 2>/dev/null || true
                 BR2_EXTERNAL=../external/custom make linux-rebuild -j\$(nproc)
             else
                 echo \"==> Building (this takes 15-60 minutes)...\"
@@ -264,6 +284,9 @@ else
 
     if [ "$BUILD_MODE" = "linux-rebuild" ]; then
         echo "==> Rebuilding kernel and device tree..."
+        # Touch stamp files to prevent re-patching when only rebuilding
+        touch output/build/linux-develop-6.1/.stamp_patched 2>/dev/null || true
+        touch output/build/linux-headers-develop-6.1/.stamp_patched 2>/dev/null || true
         BR2_EXTERNAL=../external/custom make linux-rebuild -j$(nproc)
     else
         echo "==> Building (this takes 15-60 minutes)..."
