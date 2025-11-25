@@ -9,9 +9,11 @@ if [ -z "$SERIAL" ]; then
     exit 0
 fi
 
-# Generate MAC from last 6 hex chars of serial, with local admin bit set
+# Generate MAC from last 10 hex chars of serial, with local admin bit set
 # Format: 02:xx:xx:xx:xx:xx (02 = locally administered, unicast)
-MAC="02:$(echo "$SERIAL" | tail -c 11 | sed 's/\(..\)/\1:/g' | sed 's/:$//')"
+# Extract last 10 chars, then format as colon-separated pairs
+LAST10=$(echo "$SERIAL" | sed 's/.*\(.\{10\}\)$/\1/')
+MAC="02:$(echo "$LAST10" | sed 's/\(..\)/\1:/g' | sed 's/:$//')"
 
 # Find ethernet interface
 for iface in end0 end1 eth0 eth1; do

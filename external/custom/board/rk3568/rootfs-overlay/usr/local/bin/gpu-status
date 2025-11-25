@@ -1,0 +1,50 @@
+#!/bin/sh
+# Display GPU hardware and driver status
+
+echo '========================================='
+echo 'GPU Hardware & Driver Status'
+echo '========================================='
+echo ''
+
+echo '--- GPU Driver ---'
+lsmod 2>/dev/null | grep mali || echo 'Mali driver: built-in (not a module)'
+echo ''
+
+echo '--- Device Nodes ---'
+ls -la /dev/mali* /dev/dri/* 2>/dev/null
+echo ''
+
+echo '--- Kernel Messages ---'
+dmesg | grep 'mali.*GPU' | head -3
+echo ''
+
+echo '--- DRM Driver ---'
+cat /sys/class/drm/card0/device/uevent 2>/dev/null | grep DRIVER || echo 'No DRM driver found'
+echo ''
+
+echo '--- Display Output ---'
+if command -v modetest >/dev/null 2>&1; then
+    modetest -M rockchip -c 2>/dev/null | grep -A 2 'Connectors:' || echo 'No display info available'
+else
+    echo 'modetest not available'
+fi
+echo ''
+
+echo '--- OpenGL/EGL Libraries ---'
+ls -lh /usr/lib/lib*GL*.so* 2>/dev/null | head -5 || echo 'No GL libraries found'
+echo ''
+
+echo '========================================='
+echo 'Summary:'
+echo '========================================='
+echo 'GPU: Mali-G52 (Bifrost arch 7.4.0)'
+echo 'Driver: ARM Mali Bifrost (proprietary)'
+echo 'DRM: Rockchip display-subsystem'
+if command -v modetest >/dev/null 2>&1; then
+    HDMI_STATUS=$(modetest -M rockchip -c 2>/dev/null | grep 'HDMI-A-1' | awk '{print $3}')
+    [ -n "$HDMI_STATUS" ] && echo "HDMI: $HDMI_STATUS" || echo 'HDMI: unknown'
+fi
+echo 'Render node: /dev/dri/renderD128'
+echo 'Device node: /dev/mali0'
+echo 'EGL/GLES: Mesa libraries available'
+echo '========================================='

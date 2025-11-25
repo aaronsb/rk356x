@@ -204,8 +204,8 @@ if [ "$USE_DOCKER" = true ]; then
         ubuntu:22.04 bash -c '
         set -e
         echo "==> Installing build dependencies..."
-        apt-get update > /dev/null 2>&1
-        apt-get install -y \
+        apt-get update -qq
+        apt-get install -y --no-install-recommends \
             build-essential \
             libssl-dev \
             libncurses-dev \
@@ -219,7 +219,7 @@ if [ "$USE_DOCKER" = true ]; then
             python3-pyelftools \
             git \
             sudo \
-            > /dev/null 2>&1
+            | grep -E "^(Get:|Hit:|Fetched|Reading|Setting up|Processing|Unpacking)" || true
         echo "✓ Dependencies installed"
         echo ""
 

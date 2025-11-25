@@ -56,6 +56,19 @@ lsmod 2>/dev/null | grep -q 8723ds && WIFI_STATUS="ready"
 FB_RES=$(cat /sys/class/graphics/fb0/virtual_size 2>/dev/null | tr ',' 'x')
 [ -z "$FB_RES" ] && FB_RES="--"
 
+# GPU detection (Panfrost/Mali Bifrost)
+GPU_STATUS="--"
+if [ -e /sys/class/drm/card0/device/driver ]; then
+    GPU_DRIVER=$(basename $(readlink /sys/class/drm/card0/device/driver) 2>/dev/null)
+    if [ "$GPU_DRIVER" = "panfrost" ]; then
+        GPU_STATUS="Mali (Panfrost)"
+    elif [ "$GPU_DRIVER" = "mali" ]; then
+        GPU_STATUS="Mali (Bifrost)"
+    elif [ -n "$GPU_DRIVER" ]; then
+        GPU_STATUS="$GPU_DRIVER"
+    fi
+fi
+
 # WiFi networks (top 5 by signal strength)
 WIFI_NETWORKS=""
 if [ -d /sys/class/net/wlan0 ]; then
@@ -105,8 +118,9 @@ BANNER
     printf " %-14s %-18s %-14s %s\n" "Kernel:" "$KERNEL" "Ethernet:" "${ETH_SPEED} Mbps"
     printf " %-14s %-18s %-14s %s\n" "Host:" "$HOSTNAME" "HDMI:" "$HDMI_STATUS"
     printf " %-14s %-18s %-14s %s\n" "Uptime:" "$UPTIME" "Display:" "$FB_RES"
-    printf " %-14s %-18s %-14s %s\n" "Memory:" "${MEM_FREE}/${MEM_TOTAL} MB" "WiFi:" "$WIFI_STATUS"
-    printf " %-14s %-18s %-14s %s\n" "IP:" "$IP_ADDR" "USB:" "${USB_COUNT} devices"
+    printf " %-14s %-18s %-14s %s\n" "Memory:" "${MEM_FREE}/${MEM_TOTAL} MB" "GPU:" "$GPU_STATUS"
+    printf " %-14s %-18s %-14s %s\n" "IP:" "$IP_ADDR" "WiFi:" "$WIFI_STATUS"
+    printf " %-14s %-18s %-14s %s\n" "" "" "USB:" "${USB_COUNT} devices"
     printf " %-14s %-18s %-14s %s\n" "" "" "eMMC:" "${EMMC_SIZE} GB"
     printf " %-14s %-18s %-14s %s\n" "" "" "SD Card:" "${SD_SIZE} GB"
 } >> /run/issue

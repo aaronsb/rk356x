@@ -13,7 +13,8 @@ MMMMMMMMMMM MMMMMMMMMMM
  ------                          ---------------
  Kernel:  \r                     Ethernet: (check after boot)
  Host:    \n                     HDMI:     (check after boot)
- TTY:     \l                     WiFi:     (check after boot)
+ TTY:     \l                     GPU:      (check after boot)
+                                 WiFi:     (check after boot)
 
  Waiting for network to display full status...
 
