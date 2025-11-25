@@ -435,6 +435,10 @@
 		pinctrl-0 = <&pmic_int>;
 		rockchip,system-power-controller;
 		wakeup-source;
+		/* 0: reset the PMIC on system reset */
+		pmic-reset-func = <0>;
+		/* Don't save PMIC_POWER_EN register in U-Boot */
+		not-save-power-en = <1>;
 
 		vcc1-supply = <&vcc3v3_sys>;
 		vcc2-supply = <&vcc3v3_sys>;
