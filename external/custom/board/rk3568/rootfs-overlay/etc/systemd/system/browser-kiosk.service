@@ -1,0 +1,23 @@
+# Browser Kiosk Mode Service
+# This service is DISABLED by default for development/testing
+# To enable: systemctl enable browser-kiosk.service
+# To start once: systemctl start browser-kiosk.service
+
+[Unit]
+Description=Browser Kiosk Mode
+After=systemd-user-sessions.service multi-user.target
+Wants=systemd-user-sessions.service
+
+[Service]
+Type=simple
+User=root
+Environment=XDG_SESSION_TYPE=wayland
+StandardOutput=journal
+StandardError=journal
+ExecStart=/usr/local/bin/start-browser
+Restart=on-failure
+RestartSec=5
+
+[Install]
+# Service is available but not enabled by default
+# WantedBy=multi-user.target
