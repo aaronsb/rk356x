@@ -31,6 +31,10 @@ WIFI_STATUS="no driver"
 lsmod 2>/dev/null | grep -q 8723ds && WIFI_STATUS="ready"
 [ -d /sys/class/net/wlan0 ] && WIFI_STATUS="up"
 
+# Framebuffer resolution
+FB_RES=$(cat /sys/class/graphics/fb0/virtual_size 2>/dev/null | tr ',' 'x')
+[ -z "$FB_RES" ] && FB_RES="--"
+
 # WiFi networks (top 5 by signal strength)
 WIFI_NETWORKS=""
 if [ -d /sys/class/net/wlan0 ]; then
@@ -79,9 +83,10 @@ BANNER
     printf " %-14s %-18s %-14s %s\n" "------" "" "--------" ""
     printf " %-14s %-18s %-14s %s\n" "Kernel:" "$KERNEL" "Ethernet:" "${ETH_SPEED} Mbps"
     printf " %-14s %-18s %-14s %s\n" "Host:" "$HOSTNAME" "HDMI:" "$HDMI_STATUS"
-    printf " %-14s %-18s %-14s %s\n" "Uptime:" "$UPTIME" "WiFi:" "$WIFI_STATUS"
-    printf " %-14s %-18s %-14s %s\n" "Memory:" "${MEM_FREE}/${MEM_TOTAL} MB" "USB:" "${USB_COUNT} devices"
-    printf " %-14s %-18s %-14s %s\n" "IP:" "$IP_ADDR" "eMMC:" "${EMMC_SIZE} GB"
+    printf " %-14s %-18s %-14s %s\n" "Uptime:" "$UPTIME" "Display:" "$FB_RES"
+    printf " %-14s %-18s %-14s %s\n" "Memory:" "${MEM_FREE}/${MEM_TOTAL} MB" "WiFi:" "$WIFI_STATUS"
+    printf " %-14s %-18s %-14s %s\n" "IP:" "$IP_ADDR" "USB:" "${USB_COUNT} devices"
+    printf " %-14s %-18s %-14s %s\n" "" "" "eMMC:" "${EMMC_SIZE} GB"
     printf " %-14s %-18s %-14s %s\n" "" "" "SD Card:" "${SD_SIZE} GB"
 } >> /run/issue
 
