@@ -1,5 +1,7 @@
 [Unit]
 Description=Update /etc/issue with system info
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=oneshot

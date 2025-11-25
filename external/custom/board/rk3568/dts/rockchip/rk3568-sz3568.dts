@@ -182,22 +182,23 @@
 	};
 
 	/* Status LEDs - controlled by update-issue script based on network status
-	 * Red = booting/no network, Blue = network connected with IP */
+	 * Blue = running/network OK (default on), off = no network */
 	leds: leds {
 		compatible = "gpio-leds";
 
-		/* Blue LED - network connected indicator (script sets this) */
+		/* Blue LED - starts on at boot, script turns off if no network */
 		work_led: work {
 			gpios = <&gpio3 RK_PD1 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "none";
-			default-state = "off";
-		};
-
-		/* Red LED - boot/no-network indicator (default on until network is up) */
-		red_led: red {
-			gpios = <&gpio0 RK_PB7 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "default-on";
 			default-state = "on";
+		};
+
+		/* Red LED GPIO - not connected to visible LED on this board
+		 * The visible red LED is controlled by RK809 PMIC boot state */
+		red_led: red {
+			gpios = <&gpio0 RK_PB7 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "none";
+			default-state = "off";
 		};
 	};
 
