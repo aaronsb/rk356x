@@ -30,7 +30,7 @@ ls -lh buildroot/output/images/
 |-----------|---------|-------------|
 | **Buildroot** | 2024.08.1 | Build system |
 | **U-Boot** | 2024.07 | Bootloader with Rockchip vendor blobs |
-| **Linux Kernel** | 6.6.62 LTS | Mainline kernel with ARM64 default config |
+| **Linux Kernel** | 6.1 LTS | Mainline kernel with ARM64 default config |
 | **Init System** | systemd | Modern init with networking |
 | **Root Filesystem** | 512MB ext4 | Minimal embedded Linux with essential tools |
 
