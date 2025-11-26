@@ -125,14 +125,25 @@ copy_custom_files() {
 
         # Add custom DTBs to Makefile so they get compiled
         log "Adding custom DTBs to Makefile..."
+        local makefile_path="${KERNEL_DIR}/arch/arm64/boot/dts/rockchip/Makefile"
+
+        if [ ! -f "$makefile_path" ]; then
+            error "Makefile not found at $makefile_path - kernel may not be cloned correctly"
+        fi
+
         for dts in "${PROJECT_ROOT}"/external/custom/board/rk3568/dts/rockchip/*.dts; do
             if [ -f "$dts" ]; then
                 local dtb_name=$(basename "$dts" .dts)
                 # Check if already in Makefile
-                if ! grep -q "${dtb_name}.dtb" "${KERNEL_DIR}/arch/arm64/boot/dts/rockchip/Makefile"; then
-                    echo "dtb-\$(CONFIG_ARCH_ROCKCHIP) += ${dtb_name}.dtb" >> \
-                        "${KERNEL_DIR}/arch/arm64/boot/dts/rockchip/Makefile"
-                    log "Added ${dtb_name}.dtb to Makefile"
+                if ! grep -q "${dtb_name}.dtb" "$makefile_path" 2>/dev/null; then
+                    echo "dtb-\$(CONFIG_ARCH_ROCKCHIP) += ${dtb_name}.dtb" >> "$makefile_path"
+                    if [ $? -eq 0 ]; then
+                        log "✓ Added ${dtb_name}.dtb to Makefile"
+                    else
+                        error "Failed to add ${dtb_name}.dtb to Makefile"
+                    fi
+                else
+                    log "✓ ${dtb_name}.dtb already in Makefile"
                 fi
             fi
         done
