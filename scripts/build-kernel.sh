@@ -215,7 +215,8 @@ build_deb_packages() {
 
     # Set version for packages
     local version=$(make -s kernelrelease)
-    local pkg_version="1.0.0-rockchip-${BOARD}"
+    # Replace underscores with hyphens (Debian package versions can't have underscores)
+    local pkg_version="1.0.0-rockchip-${BOARD//_/-}"
 
     log "Kernel version: ${version}"
     log "Package version: ${pkg_version}"
