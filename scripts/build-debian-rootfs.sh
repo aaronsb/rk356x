@@ -102,6 +102,15 @@ apt-get install -y \
     locales \
     tzdata
 
+# Install network firmware and tools
+apt-get install -y \
+    linux-firmware \
+    firmware-realtek \
+    wireless-tools \
+    wpasupplicant \
+    iw \
+    rfkill
+
 # Generate locales
 locale-gen en_US.UTF-8
 update-locale LANG=en_US.UTF-8
@@ -117,7 +126,6 @@ apt-get install -y \
 # Install graphics and multimedia
 apt-get install -y \
     libdrm2 \
-    libgbm1 \
     mesa-utils \
     gstreamer1.0-plugins-base \
     gstreamer1.0-plugins-good \
@@ -128,6 +136,9 @@ apt-get install -y \
 # Install browser (WebKitGTK-based)
 apt-get install -y \
     epiphany-browser
+
+# Mali GPU support will be installed via .deb package in post-install step
+echo "Mali GPU package will be installed separately"
 
 # Install utilities
 apt-get install -y \
@@ -186,11 +197,36 @@ EOF
 install_mali_gpu() {
     log "Installing Mali GPU drivers..."
 
-    warn "Mali GPU package installation will be added in next step"
-    warn "We'll use libmali-bifrost-g52-g13p0-x11-gbm .deb package"
+    # Mali G52 package URL (from Kylinos archive - compatible with RK3568)
+    local mali_pkg="libmali-bifrost-g52-g13p0-x11-wayland-gbm_1.9-1rk6_arm64.deb"
+    local mali_url="http://archive.kylinos.cn/kylin/KYLIN-ALL/pool/main/libm/libmali/${mali_pkg}"
 
-    # TODO: Download and install Mali .deb package
-    # This will be added once we identify the correct package source
+    # Download Mali package
+    mkdir -p "${ROOTFS_DIR}/mali-pkg"
+    if [ ! -f "${ROOTFS_DIR}/mali-pkg/${mali_pkg}" ]; then
+        log "Downloading Mali GPU package..."
+        wget -P "${ROOTFS_DIR}/mali-pkg" "${mali_url}" || {
+            warn "Failed to download Mali package from Kylinos"
+            warn "You can manually download and install later"
+            return
+        }
+    fi
+
+    # Install to rootfs via chroot
+    log "Installing Mali GPU package to rootfs..."
+    sudo cp "${ROOTFS_DIR}/mali-pkg/${mali_pkg}" "${ROOTFS_WORK}/tmp/"
+    sudo cp /usr/bin/qemu-aarch64-static "${ROOTFS_WORK}/usr/bin/" || true
+
+    sudo chroot "${ROOTFS_WORK}" /bin/bash << 'CHROOT_EOF'
+set -e
+cd /tmp
+echo "Installing Mali GPU driver..."
+dpkg -i *.deb || apt-get install -f -y
+rm -f /tmp/*.deb
+echo "Mali GPU driver installed"
+CHROOT_EOF
+
+    log "✓ Mali GPU installed: libmali-bifrost-g52-g13p0"
 }
 
 create_image() {
