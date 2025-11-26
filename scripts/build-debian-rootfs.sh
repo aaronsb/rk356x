@@ -207,8 +207,15 @@ chmod +x /usr/bin/py3compile
 # py3clean can just be a symlink to py3compile
 ln -sf /usr/bin/py3compile /usr/bin/py3clean
 
+# Set apt install flags based on profile
+if [ "$PROFILE" = "minimal" ]; then
+    APT_OPTS="--no-install-recommends"
+else
+    APT_OPTS=""
+fi
+
 # Install essential packages
-apt-get install -y \
+apt-get install -y $APT_OPTS \
     systemd systemd-sysv \
     openssh-server \
     sudo \
@@ -219,10 +226,10 @@ apt-get install -y \
 # Network management
 if [ "$PROFILE" = "full" ]; then
     # Full profile: NetworkManager with GUI applet
-    apt-get install -y network-manager
+    apt-get install -y $APT_OPTS network-manager
 else
     # Minimal profile: systemd-networkd (no GNOME dependencies)
-    apt-get install -y \
+    apt-get install -y $APT_OPTS \
         systemd-resolved \
         iproute2 \
         dhcpcd5
@@ -232,7 +239,7 @@ fi
 # Note: Realtek firmware is included in linux-firmware on Ubuntu
 if [ "$PROFILE" = "full" ]; then
     # Full profile: all firmware
-    apt-get install -y \
+    apt-get install -y $APT_OPTS \
         linux-firmware \
         wireless-tools \
         wpasupplicant \
@@ -240,7 +247,7 @@ if [ "$PROFILE" = "full" ]; then
         rfkill
 else
     # Minimal profile: only essential WiFi tools (firmware from kernel modules)
-    apt-get install -y \
+    apt-get install -y $APT_OPTS \
         wpasupplicant \
         iw
 fi
@@ -252,7 +259,7 @@ update-locale LANG=en_US.UTF-8
 # Install XFCE desktop
 if [ "$PROFILE" = "full" ]; then
     # Full profile: complete XFCE with all plugins and display manager
-    apt-get install -y \
+    apt-get install -y $APT_OPTS \
         xfce4 \
         xfce4-terminal \
         lightdm \
@@ -260,7 +267,7 @@ if [ "$PROFILE" = "full" ]; then
         x11-xserver-utils
 else
     # Minimal profile: core XFCE only (no extra plugins, games, etc)
-    apt-get install -y \
+    apt-get install -y $APT_OPTS \
         xfce4-session \
         xfwm4 \
         xfdesktop4 \
@@ -275,7 +282,7 @@ else
 fi
 
 # Install graphics and multimedia
-apt-get install -y \
+apt-get install -y $APT_OPTS \
     libdrm2 \
     mesa-utils \
     libgles2 \
@@ -283,7 +290,7 @@ apt-get install -y \
 
 if [ "$PROFILE" = "full" ]; then
     # Full profile: add GStreamer for media playback
-    apt-get install -y \
+    apt-get install -y $APT_OPTS \
         gstreamer1.0-plugins-base \
         gstreamer1.0-plugins-good \
         gstreamer1.0-plugins-bad \
@@ -292,7 +299,7 @@ if [ "$PROFILE" = "full" ]; then
 fi
 
 # Install browser (WebKitGTK-based)
-apt-get install -y \
+apt-get install -y $APT_OPTS \
     epiphany-browser
 
 # Mali GPU support will be installed via .deb package in post-install step
@@ -301,7 +308,7 @@ echo "Mali GPU package will be installed separately"
 # Install utilities
 if [ "$PROFILE" = "full" ]; then
     # Full profile: development and debugging tools
-    apt-get install -y \
+    apt-get install -y $APT_OPTS \
         vim \
         git \
         wget \
@@ -314,7 +321,7 @@ if [ "$PROFILE" = "full" ]; then
         pciutils
 else
     # Minimal profile: essential tools only
-    apt-get install -y \
+    apt-get install -y $APT_OPTS \
         nano \
         wget \
         htop \
