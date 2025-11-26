@@ -27,6 +27,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     bc \
     kmod \
     debhelper \
+    cpio \
     gcc-aarch64-linux-gnu \
     device-tree-compiler \
     # Rootfs build dependencies
