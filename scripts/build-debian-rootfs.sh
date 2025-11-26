@@ -209,7 +209,7 @@ chmod +x /usr/bin/py3compile
 ln -sf /usr/bin/py3compile /usr/bin/py3clean
 
 # Set apt install flags based on profile
-if [ "$PROFILE" = "minimal" ]; then
+if [ "\$PROFILE" = "minimal" ]; then
     APT_OPTS="--no-install-recommends"
 else
     APT_OPTS=""
@@ -225,7 +225,7 @@ apt-get install -y $APT_OPTS \
     tzdata
 
 # Network management
-if [ "$PROFILE" = "full" ]; then
+if [ "\$PROFILE" = "full" ]; then
     # Full profile: NetworkManager with GUI applet
     apt-get install -y $APT_OPTS network-manager
 else
@@ -238,7 +238,7 @@ fi
 
 # Install network firmware and tools
 # Note: Realtek firmware is included in linux-firmware on Ubuntu
-if [ "$PROFILE" = "full" ]; then
+if [ "\$PROFILE" = "full" ]; then
     # Full profile: all firmware
     apt-get install -y $APT_OPTS \
         linux-firmware \
@@ -258,7 +258,7 @@ locale-gen en_US.UTF-8
 update-locale LANG=en_US.UTF-8
 
 # Install XFCE desktop
-if [ "$PROFILE" = "full" ]; then
+if [ "\$PROFILE" = "full" ]; then
     # Full profile: complete XFCE with all plugins and display manager
     apt-get install -y $APT_OPTS \
         xfce4 \
@@ -294,7 +294,7 @@ apt-get install -y $APT_OPTS \
     libxcb-dri2-0 \
     libxcb-dri3-0
 
-if [ "$PROFILE" = "full" ]; then
+if [ "\$PROFILE" = "full" ]; then
     # Full profile: add GStreamer for media playback
     apt-get install -y $APT_OPTS \
         gstreamer1.0-plugins-base \
@@ -312,7 +312,7 @@ apt-get install -y $APT_OPTS \
 echo "Mali GPU package will be installed separately"
 
 # Install utilities
-if [ "$PROFILE" = "full" ]; then
+if [ "\$PROFILE" = "full" ]; then
     # Full profile: development and debugging tools
     apt-get install -y $APT_OPTS \
         vim \
@@ -346,7 +346,7 @@ echo "root:root" | chpasswd
 # NOTE: eMMC provisioning script is installed separately after chroot
 
 # Enable services
-if [ "$PROFILE" = "full" ]; then
+if [ "\$PROFILE" = "full" ]; then
     systemctl enable NetworkManager
     systemctl enable lightdm
 else
