@@ -348,6 +348,9 @@ install_boot_files() {
     mkdir -p "${WORK_DIR}/boot/dtbs/rockchip"
     cp "${KERNEL_DIR}/arch/arm64/boot/dts/rockchip/${DTB_NAME}.dtb" \
         "${WORK_DIR}/boot/dtbs/rockchip/"
+    # Also copy to root of boot partition for easier manual loading
+    cp "${KERNEL_DIR}/arch/arm64/boot/dts/rockchip/${DTB_NAME}.dtb" \
+        "${WORK_DIR}/boot/"
 
     # Create extlinux config for U-Boot
     log "Creating extlinux boot configuration..."
