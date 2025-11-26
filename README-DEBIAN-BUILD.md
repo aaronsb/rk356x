@@ -84,7 +84,31 @@ sudo apt install \
 
 ### Build Workflow
 
-#### Complete Build Process
+#### Option 1: Orchestrator Script (Recommended)
+
+The `build.sh` orchestrator guides you through the build process interactively:
+
+```bash
+# Interactive mode (recommended for first-time builds)
+./build.sh rk3568_sz3568
+
+# Auto mode: build what's missing, flash to SD card
+sudo ./build.sh --auto --device /dev/sdX rk3568_sz3568
+
+# See all options
+./build.sh --help
+```
+
+**Features:**
+- 🔍 Detects existing artifacts (kernel, rootfs, image)
+- 📊 Shows artifact properties (size, date, version)
+- 🤔 Asks whether to skip or rebuild each stage
+- ⚡ Auto mode: builds only what's missing
+- 💾 Auto mode: flashes to SD card automatically
+
+#### Option 2: Manual Build Process
+
+Run individual scripts if you need fine-grained control:
 
 ```bash
 # 1. Build kernel (automatically uses Docker if available)
