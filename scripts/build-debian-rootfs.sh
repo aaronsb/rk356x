@@ -194,9 +194,9 @@ apt-get install -y \
     tzdata
 
 # Install network firmware and tools
+# Note: Realtek firmware is included in linux-firmware on Ubuntu
 apt-get install -y \
     linux-firmware \
-    firmware-realtek \
     wireless-tools \
     wpasupplicant \
     iw \
