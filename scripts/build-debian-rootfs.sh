@@ -322,6 +322,32 @@ if [ "$PROFILE" = "full" ]; then
     systemctl enable lightdm
 fi
 
+# Create first-boot Python bytecode compilation service
+cat > /etc/systemd/system/py3compile-first-boot.service << 'FIRSTBOOT_SERVICE'
+[Unit]
+Description=Compile Python bytecode on first boot
+After=multi-user.target
+ConditionPathExists=!/var/lib/py3compile-first-boot.done
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/echo "First boot: Compiling Python bytecode (this may take a few minutes)..."
+ExecStart=/usr/bin/python3 -m compileall -q /usr
+ExecStartPost=/bin/touch /var/lib/py3compile-first-boot.done
+ExecStartPost=/bin/systemctl disable py3compile-first-boot.service
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+FIRSTBOOT_SERVICE
+
+systemctl enable py3compile-first-boot.service
+
+# Remove py3compile diversion so real hardware uses normal py3compile
+dpkg-divert --remove /usr/bin/py3compile
+dpkg-divert --remove /usr/bin/py3clean
+
 # Note: apt cache is NOT cleaned here - it's bind-mounted for reuse across builds
 
 echo "Rootfs customization complete"
