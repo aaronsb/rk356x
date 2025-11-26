@@ -255,7 +255,7 @@ partition_image() {
     fi
 
     boot_end=$((boot_start + BOOT_SIZE * 2048))
-    rootfs_start=${boot_end}
+    rootfs_start=$((boot_end + 1))  # Start one sector after boot partition ends
 
     log "  Rootfs:      $((boot_start / 2048 + BOOT_SIZE))MB - ${IMAGE_SIZE}MB"
 
