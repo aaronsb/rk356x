@@ -833,18 +833,36 @@ show_summary() {
         if [ -n "$final_image" ]; then
             echo -e "${BOLD}Next Steps:${NC}"
             echo "  1. Flash to SD card:"
-            echo "     ${CYAN}sudo dd if=$(basename "$final_image") of=/dev/sdX bs=4M status=progress${NC}"
+            echo -e "     ${CYAN}sudo dd if=$(basename "$final_image") of=/dev/sdX bs=4M status=progress${NC}"
             echo
             echo "  2. Or use compressed version with balenaEtcher:"
             if [ -f "${final_image}.xz" ]; then
-                echo "     ${CYAN}$(basename "${final_image}.xz")${NC}"
+                echo -e "     ${CYAN}$(basename "${final_image}.xz")${NC}"
             else
-                echo "     ${YELLOW}(Run xz compression if needed)${NC}"
+                echo -e "     ${YELLOW}(Run xz compression if needed)${NC}"
             fi
             echo
             echo "  3. Default credentials:"
-            echo "     User: ${CYAN}rock${NC} / Password: ${CYAN}rock${NC}"
-            echo "     Root: ${CYAN}root${NC} / Password: ${CYAN}root${NC}"
+            echo -e "     User: ${CYAN}rock${NC} / Password: ${CYAN}rock${NC}"
+            echo -e "     Root: ${CYAN}root${NC} / Password: ${CYAN}root${NC}"
+            echo
+            echo -e "${BOLD}Manual U-Boot Boot (if board doesn't auto-boot):${NC}"
+            echo "  1. Interrupt U-Boot (press any key during countdown)"
+            echo "  2. Load kernel and device tree:"
+            echo -e "     ${CYAN}ext4load mmc 1:1 0x02080000 /Image${NC}"
+            echo -e "     ${CYAN}ext4load mmc 1:1 0x0a100000 /${DTB_NAME}.dtb${NC}"
+            echo "  3. Set boot arguments:"
+            echo -e "     ${CYAN}setenv bootargs console=ttyS2,1500000 root=/dev/mmcblk1p2 rootwait rw${NC}"
+            echo "  4. Boot:"
+            echo -e "     ${CYAN}booti 0x02080000 - 0x0a100000${NC}"
+            echo
+            echo -e "${BOLD}Provision to eMMC (optional):${NC}"
+            echo "  1. Boot from SD card"
+            echo "  2. Login and run:"
+            echo -e "     ${CYAN}sudo setup-emmc${NC}"
+            echo "  3. Wait ~5 minutes for copy to complete"
+            echo "  4. Shutdown and remove SD card"
+            echo "  5. Power on - board will boot from eMMC"
         fi
     else
         echo "   ${RED}Not found${NC}"
