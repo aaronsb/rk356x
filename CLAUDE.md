@@ -1,10 +1,16 @@
-# RK356X Buildroot Project - Claude Context
+# RK356X Project - Claude Context
 
-## Project Overview
+## Build System
 
-This is a Buildroot-based embedded Linux build system for Rockchip RK3568 boards. It produces complete bootable images with U-Boot, Linux kernel, and rootfs.
+**NEW: Debian/Ubuntu Build System (Recommended)**
+We've switched from Buildroot to a Debian-based approach for better package management and team alignment.
 
-**Key principle:** The image is the product - everything is defined in config files, not modified post-install. No `apt install` drift.
+- **Documentation:** See [README-DEBIAN-BUILD.md](README-DEBIAN-BUILD.md)
+- **Quick Start:** `./scripts/build-kernel.sh && ./scripts/build-debian-rootfs.sh`
+- **Benefits:** Standard `apt` packages, no version conflicts, faster desktop builds
+
+**Legacy: Buildroot** (Still available but deprecated for desktop builds)
+The original Buildroot system is still functional for minimal/embedded builds without desktop environment.
 
 ## Supported Boards
 
