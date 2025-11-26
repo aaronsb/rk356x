@@ -130,6 +130,29 @@ clone_kernel() {
 copy_custom_files() {
     log "Copying custom DTBs and drivers..."
 
+    # Apply patches FIRST (before our custom additions)
+    if [ -d "${PROJECT_ROOT}/external/custom/patches/linux" ]; then
+        log "Applying kernel patches..."
+        cd "${KERNEL_DIR}"
+
+        # Reset any previously applied patches
+        git checkout -- . 2>/dev/null || true
+
+        for patch in "${PROJECT_ROOT}"/external/custom/patches/linux/*.patch; do
+            if [ -f "$patch" ]; then
+                log "Applying: $(basename "$patch")"
+                if patch -p1 --dry-run < "$patch" &>/dev/null; then
+                    patch -p1 < "$patch"
+                else
+                    warn "Patch $(basename "$patch") already applied or failed"
+                fi
+            fi
+        done
+        cd "${PROJECT_ROOT}"
+    else
+        warn "No patches found in external/custom/patches/linux"
+    fi
+
     # Copy custom DTBs
     if [ -d "${PROJECT_ROOT}/external/custom/board/rk3568/dts/rockchip" ]; then
         log "Copying device trees..."
@@ -198,40 +221,6 @@ config MAXIO_PHY\
         else
             log "✓ maxio.o already in Makefile"
         fi
-    fi
-
-    # Apply patches
-    if [ -d "${PROJECT_ROOT}/external/custom/patches/linux" ]; then
-        log "Applying kernel patches..."
-        cd "${KERNEL_DIR}"
-
-        # Reset only patch-affected files, not our custom Makefile/Kconfig changes
-        # Save the Makefiles and Kconfigs we just modified
-        cp arch/arm64/boot/dts/rockchip/Makefile /tmp/dtb_makefile.tmp 2>/dev/null || true
-        cp drivers/net/phy/Makefile /tmp/phy_makefile.tmp 2>/dev/null || true
-        cp drivers/net/phy/Kconfig /tmp/phy_kconfig.tmp 2>/dev/null || true
-
-        # Reset any previously applied patches
-        git checkout -- . 2>/dev/null || true
-
-        # Restore our custom additions
-        [ -f /tmp/dtb_makefile.tmp ] && cp /tmp/dtb_makefile.tmp arch/arm64/boot/dts/rockchip/Makefile
-        [ -f /tmp/phy_makefile.tmp ] && cp /tmp/phy_makefile.tmp drivers/net/phy/Makefile
-        [ -f /tmp/phy_kconfig.tmp ] && cp /tmp/phy_kconfig.tmp drivers/net/phy/Kconfig
-
-        for patch in "${PROJECT_ROOT}"/external/custom/patches/linux/*.patch; do
-            if [ -f "$patch" ]; then
-                log "Applying: $(basename "$patch")"
-                if patch -p1 --dry-run < "$patch" &>/dev/null; then
-                    patch -p1 < "$patch"
-                else
-                    warn "Patch $(basename "$patch") already applied or failed"
-                fi
-            fi
-        done
-        cd "${PROJECT_ROOT}"
-    else
-        warn "No patches found in external/custom/patches/linux"
     fi
 }
 
