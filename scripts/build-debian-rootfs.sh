@@ -140,7 +140,7 @@ customize_rootfs() {
     log "Customizing rootfs with chroot..."
 
     # Create customization script
-    cat << 'EOF' | sudo tee "${ROOTFS_WORK}/tmp/customize.sh" > /dev/null
+    cat << 'EOF' | maybe_sudo tee "${ROOTFS_WORK}/tmp/customize.sh" > /dev/null
 #!/bin/bash
 set -e
 
