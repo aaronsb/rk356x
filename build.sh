@@ -396,7 +396,7 @@ stage_kernel() {
 
     local status=$(check_kernel_artifacts)
 
-    if echo "$status" | grep -q "FOUND"; then
+    if echo "$status" | grep -q "^FOUND$"; then
         echo -e "${GREEN}${ICON_CHECK} Kernel artifacts found:${NC}"
         echo "$status" | grep -v "FOUND" || true
         echo
@@ -444,7 +444,7 @@ stage_rootfs() {
 
     local status=$(check_rootfs_artifact)
 
-    if echo "$status" | grep -q "FOUND"; then
+    if echo "$status" | grep -q "^FOUND$"; then
         echo -e "${GREEN}${ICON_CHECK} Rootfs artifact found:${NC}"
         echo "$status" | grep -v "FOUND" || true
         echo
@@ -494,17 +494,17 @@ stage_image() {
     local kernel_status=$(check_kernel_artifacts)
     local rootfs_status=$(check_rootfs_artifact)
 
-    if ! echo "$kernel_status" | grep -q "FOUND"; then
+    if ! echo "$kernel_status" | grep -q "^FOUND$"; then
         error "Kernel artifacts not found! Run kernel build first."
     fi
 
-    if ! echo "$rootfs_status" | grep -q "FOUND"; then
+    if ! echo "$rootfs_status" | grep -q "^FOUND$"; then
         error "Rootfs artifact not found! Run rootfs build first."
     fi
 
     local status=$(check_image_artifacts)
 
-    if echo "$status" | grep -q "FOUND"; then
+    if echo "$status" | grep -q "^FOUND$"; then
         echo -e "${GREEN}${ICON_CHECK} Final image found:${NC}"
         echo "$status" | grep -v "FOUND" || true
         echo
@@ -585,7 +585,7 @@ show_summary() {
 
     echo -e "${BOLD}1. Kernel (.deb packages)${NC}"
     local kernel_status=$(check_kernel_artifacts)
-    if echo "$kernel_status" | grep -q "FOUND"; then
+    if echo "$kernel_status" | grep -q "^FOUND$"; then
         echo "$kernel_status" | grep -v "FOUND" || true
     else
         echo "   ${RED}Not found${NC}"
@@ -594,7 +594,7 @@ show_summary() {
 
     echo -e "${BOLD}2. Rootfs (filesystem image)${NC}"
     local rootfs_status=$(check_rootfs_artifact)
-    if echo "$rootfs_status" | grep -q "FOUND"; then
+    if echo "$rootfs_status" | grep -q "^FOUND$"; then
         echo "$rootfs_status" | grep -v "FOUND" || true
     else
         echo "   ${RED}Not found${NC}"
@@ -603,7 +603,7 @@ show_summary() {
 
     echo -e "${BOLD}3. Final Image (flashable SD/eMMC)${NC}"
     local image_status=$(check_image_artifacts)
-    if echo "$image_status" | grep -q "FOUND"; then
+    if echo "$image_status" | grep -q "^FOUND$"; then
         echo "$image_status" | grep -v "FOUND" || true
         echo
 
