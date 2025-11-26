@@ -19,15 +19,15 @@ if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
 
         # Re-exec this script in Docker
         # Use SUDO_UID/SUDO_GID if running via sudo, otherwise use current user
-        local user_id="${SUDO_UID:-$(id -u)}"
-        local group_id="${SUDO_GID:-$(id -g)}"
+        USER_ID="${SUDO_UID:-$(id -u)}"
+        GROUP_ID="${SUDO_GID:-$(id -g)}"
 
         echo "==> Running build in Docker container..."
         exec docker run --rm -it \
             -v "${PROJECT_ROOT}:/work" \
             -e CONTAINER=1 \
             -w /work \
-            -u "${user_id}:${group_id}" \
+            -u "${USER_ID}:${GROUP_ID}" \
             "${DOCKER_IMAGE}:latest" \
             "/work/scripts/$(basename "$0")" "$@"
     else
