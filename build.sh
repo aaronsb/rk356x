@@ -461,6 +461,15 @@ clean_artifacts() {
         cleaned=true
     fi
 
+    # Clean intermediate build files (might be root-owned)
+    if ls "${PROJECT_ROOT}"/linux-*.deb "${PROJECT_ROOT}"/linux-*.changes "${PROJECT_ROOT}"/linux-*.buildinfo &>/dev/null; then
+        info "Removing intermediate build files..."
+        sudo rm -f "${PROJECT_ROOT}"/linux-*.deb \
+                   "${PROJECT_ROOT}"/linux-*.changes \
+                   "${PROJECT_ROOT}"/linux-*.buildinfo 2>/dev/null || true
+        cleaned=true
+    fi
+
     # Clean rootfs artifacts
     if [ -d "${PROJECT_ROOT}/rootfs/work" ]; then
         info "Removing rootfs work directory..."

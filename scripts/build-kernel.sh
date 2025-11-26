@@ -242,6 +242,10 @@ build_deb_packages() {
 
     cd "${KERNEL_DIR}"
 
+    # Remove any existing build artifacts from parent directory
+    # (might be root-owned from previous builds)
+    rm -f ../linux-*.deb ../linux-*.changes ../linux-*.buildinfo 2>/dev/null || true
+
     # Set version for packages
     local version=$(make -s kernelrelease)
     # Replace underscores with hyphens (Debian package versions can't have underscores)
