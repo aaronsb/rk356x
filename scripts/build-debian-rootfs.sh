@@ -210,12 +210,23 @@ ln -sf /usr/bin/py3compile /usr/bin/py3clean
 # Install essential packages
 apt-get install -y \
     systemd systemd-sysv \
-    network-manager \
     openssh-server \
     sudo \
     ca-certificates \
     locales \
     tzdata
+
+# Network management
+if [ "$PROFILE" = "full" ]; then
+    # Full profile: NetworkManager with GUI applet
+    apt-get install -y network-manager
+else
+    # Minimal profile: systemd-networkd (no GNOME dependencies)
+    apt-get install -y \
+        systemd-resolved \
+        iproute2 \
+        dhcpcd5
+fi
 
 # Install network firmware and tools
 # Note: Realtek firmware is included in linux-firmware on Ubuntu
@@ -316,11 +327,28 @@ echo "rock:rock" | chpasswd
 echo "root:root" | chpasswd
 
 # Enable services
-systemctl enable NetworkManager
-systemctl enable ssh
 if [ "$PROFILE" = "full" ]; then
+    systemctl enable NetworkManager
     systemctl enable lightdm
+else
+    systemctl enable systemd-networkd
+    systemctl enable systemd-resolved
+
+    # Configure ethernet for DHCP (systemd-networkd)
+    mkdir -p /etc/systemd/network
+    cat > /etc/systemd/network/20-wired.network << 'NETCONF'
+[Match]
+Name=eth* en*
+
+[Network]
+DHCP=yes
+DNSSEC=no
+
+[DHCPv4]
+UseDNS=yes
+NETCONF
 fi
+systemctl enable ssh
 
 # Create first-boot Python bytecode compilation service
 cat > /etc/systemd/system/py3compile-first-boot.service << 'FIRSTBOOT_SERVICE'
