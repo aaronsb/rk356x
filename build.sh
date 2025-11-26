@@ -759,10 +759,24 @@ show_summary() {
 main() {
     show_banner
 
+    # Handle clean-only mode (no build flags specified)
+    if [ "$CLEAN_MODE" = true ] && \
+       [ "$AUTO_MODE" = false ] && \
+       [ "$KERNEL_ONLY" = false ] && \
+       [ "$ROOTFS_ONLY" = false ] && \
+       [ "$IMAGE_ONLY" = false ] && \
+       [ "$NON_INTERACTIVE" = false ]; then
+        # Just clean and exit
+        setup_sudo  # Need sudo for cleaning Docker image and rootfs
+        clean_artifacts
+        log "Clean complete!"
+        exit 0
+    fi
+
     # Set up sudo session keepalive (if needed)
     setup_sudo
 
-    # Clean artifacts if requested
+    # Clean artifacts if requested (before building)
     if [ "$CLEAN_MODE" = true ]; then
         clean_artifacts
     fi
