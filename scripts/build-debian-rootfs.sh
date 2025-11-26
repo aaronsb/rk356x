@@ -13,8 +13,8 @@ if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
         # Build Docker image if needed
         DOCKER_IMAGE="rk3568-debian-builder"
         if ! docker image inspect "${DOCKER_IMAGE}:latest" &>/dev/null 2>&1; then
-            echo "==> Building Docker image (one-time setup)..."
-            docker build -t "${DOCKER_IMAGE}:latest" -f "${PROJECT_ROOT}/Dockerfile" "${PROJECT_ROOT}"
+            echo "==> Building Docker image (one-time setup, with apt caching)..."
+            DOCKER_BUILDKIT=1 docker build -t "${DOCKER_IMAGE}:latest" -f "${PROJECT_ROOT}/Dockerfile" "${PROJECT_ROOT}"
         fi
 
         # Re-exec this script in Docker (needs --privileged for chroot/mount)

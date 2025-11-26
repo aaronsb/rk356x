@@ -128,6 +128,7 @@ sudo dd if=output/rk3568-debian-*.img of=/dev/sdX bs=4M status=progress conv=fsy
 **How Docker works:**
 - Scripts auto-detect if Docker is available
 - First run builds Docker image (one-time, ~2 min)
+- Uses BuildKit cache mounts for apt packages (faster rebuilds)
 - Subsequent runs reuse the image (fast!)
 - If no Docker, scripts run on host (needs dependencies)
 - All build artifacts saved to host filesystem
