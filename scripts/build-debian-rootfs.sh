@@ -59,6 +59,15 @@ log() { echo -e "${GREEN}==>${NC} $*"; }
 warn() { echo -e "${YELLOW}⚠${NC} $*"; }
 error() { echo -e "${RED}✗${NC} $*" >&2; exit 1; }
 
+# Redirect output in quiet mode
+quiet_run() {
+    if [ "$QUIET_MODE" = "true" ]; then
+        "$@" > /dev/null 2>&1
+    else
+        "$@"
+    fi
+}
+
 check_deps() {
     # Skip dependency check if running in Docker (dependencies are in Dockerfile)
     if [ -f /.dockerenv ] || [ -n "$CONTAINER" ]; then
@@ -101,7 +110,11 @@ extract_rootfs() {
     rm -rf "${ROOTFS_WORK}"
     mkdir -p "${ROOTFS_WORK}"
 
-    sudo tar -xzf "${ROOTFS_DIR}/${UBUNTU_BASE}" -C "${ROOTFS_WORK}"
+    if [ "$QUIET_MODE" = "true" ]; then
+        sudo tar -xzf "${ROOTFS_DIR}/${UBUNTU_BASE}" -C "${ROOTFS_WORK}" 2>&1 | grep -v "tar:"
+    else
+        sudo tar -xzf "${ROOTFS_DIR}/${UBUNTU_BASE}" -C "${ROOTFS_WORK}"
+    fi
 }
 
 setup_qemu() {
@@ -214,13 +227,23 @@ EOF
     sudo mount --bind /dev/pts "${ROOTFS_WORK}/dev/pts"
 
     # Run customization
-    sudo chroot "${ROOTFS_WORK}" /tmp/customize.sh || {
-        sudo umount -lf "${ROOTFS_WORK}/proc" || true
-        sudo umount -lf "${ROOTFS_WORK}/sys" || true
-        sudo umount -lf "${ROOTFS_WORK}/dev/pts" || true
-        sudo umount -lf "${ROOTFS_WORK}/dev" || true
-        error "Customization failed"
-    }
+    if [ "$QUIET_MODE" = "true" ]; then
+        sudo chroot "${ROOTFS_WORK}" /tmp/customize.sh > /dev/null 2>&1 || {
+            sudo umount -lf "${ROOTFS_WORK}/proc" || true
+            sudo umount -lf "${ROOTFS_WORK}/sys" || true
+            sudo umount -lf "${ROOTFS_WORK}/dev/pts" || true
+            sudo umount -lf "${ROOTFS_WORK}/dev" || true
+            error "Customization failed"
+        }
+    else
+        sudo chroot "${ROOTFS_WORK}" /tmp/customize.sh || {
+            sudo umount -lf "${ROOTFS_WORK}/proc" || true
+            sudo umount -lf "${ROOTFS_WORK}/sys" || true
+            sudo umount -lf "${ROOTFS_WORK}/dev/pts" || true
+            sudo umount -lf "${ROOTFS_WORK}/dev" || true
+            error "Customization failed"
+        }
+    fi
 
     # Cleanup mounts
     sudo umount -lf "${ROOTFS_WORK}/proc" || true
@@ -252,7 +275,15 @@ install_mali_gpu() {
     sudo cp "${ROOTFS_DIR}/mali-pkg/${mali_pkg}" "${ROOTFS_WORK}/tmp/"
     sudo cp /usr/bin/qemu-aarch64-static "${ROOTFS_WORK}/usr/bin/" || true
 
-    sudo chroot "${ROOTFS_WORK}" /bin/bash << 'CHROOT_EOF'
+    if [ "$QUIET_MODE" = "true" ]; then
+        sudo chroot "${ROOTFS_WORK}" /bin/bash > /dev/null 2>&1 << 'CHROOT_EOF'
+set -e
+cd /tmp
+dpkg -i *.deb || apt-get install -f -y
+rm -f /tmp/*.deb
+CHROOT_EOF
+    else
+        sudo chroot "${ROOTFS_WORK}" /bin/bash << 'CHROOT_EOF'
 set -e
 cd /tmp
 echo "Installing Mali GPU driver..."
@@ -260,6 +291,7 @@ dpkg -i *.deb || apt-get install -f -y
 rm -f /tmp/*.deb
 echo "Mali GPU driver installed"
 CHROOT_EOF
+    fi
 
     log "✓ Mali GPU installed: libmali-bifrost-g52-g13p0"
 }
@@ -274,10 +306,14 @@ create_image() {
     log "Rootfs size: $((rootfs_size / 1024 / 1024))MB, Image size: $((image_size / 1024 / 1024))MB"
 
     # Create sparse image
-    dd if=/dev/zero of="${ROOTFS_IMAGE}" bs=1 count=0 seek=${image_size}
+    dd if=/dev/zero of="${ROOTFS_IMAGE}" bs=1 count=0 seek=${image_size} 2>/dev/null
 
     # Create ext4 filesystem
-    sudo mkfs.ext4 -L "rootfs" "${ROOTFS_IMAGE}"
+    if [ "$QUIET_MODE" = "true" ]; then
+        sudo mkfs.ext4 -L "rootfs" "${ROOTFS_IMAGE}" > /dev/null 2>&1
+    else
+        sudo mkfs.ext4 -L "rootfs" "${ROOTFS_IMAGE}"
+    fi
 
     # Mount and copy
     local mount_point="${ROOTFS_DIR}/mnt"
@@ -289,8 +325,13 @@ create_image() {
     sudo umount "${mount_point}"
 
     # Optimize
-    sudo e2fsck -fy "${ROOTFS_IMAGE}" || true
-    sudo resize2fs -M "${ROOTFS_IMAGE}"
+    if [ "$QUIET_MODE" = "true" ]; then
+        sudo e2fsck -fy "${ROOTFS_IMAGE}" > /dev/null 2>&1 || true
+        sudo resize2fs -M "${ROOTFS_IMAGE}" > /dev/null 2>&1
+    else
+        sudo e2fsck -fy "${ROOTFS_IMAGE}" || true
+        sudo resize2fs -M "${ROOTFS_IMAGE}"
+    fi
 
     log "Rootfs image created: ${ROOTFS_IMAGE}"
 }

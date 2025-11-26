@@ -69,6 +69,15 @@ log() { echo -e "${GREEN}==>${NC} $*"; }
 warn() { echo -e "${YELLOW}⚠${NC} $*"; }
 error() { echo -e "${RED}✗${NC} $*" >&2; exit 1; }
 
+# Redirect output in quiet mode
+quiet_run() {
+    if [ "$QUIET_MODE" = "true" ]; then
+        "$@" > /dev/null 2>&1
+    else
+        "$@"
+    fi
+}
+
 check_deps() {
     # Skip dependency check if running in Docker (dependencies are in Dockerfile)
     if [ -f /.dockerenv ] || [ -n "$CONTAINER" ]; then
@@ -185,10 +194,10 @@ configure_kernel() {
     cd "${KERNEL_DIR}"
 
     # Clean previous config
-    make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- mrproper || true
+    quiet_run make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- mrproper || true
 
     # Start with rockchip defconfig
-    make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- "${DEFCONFIG}"
+    quiet_run make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- "${DEFCONFIG}"
 
     # Apply config fragment if exists
     if [ -f "${PROJECT_ROOT}/external/custom/board/rk3568/kernel.config" ]; then
@@ -198,7 +207,7 @@ configure_kernel() {
         cat "${PROJECT_ROOT}/external/custom/board/rk3568/kernel.config" >> .config
 
         # Resolve dependencies
-        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
+        quiet_run make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
     fi
 
     # Ensure Mali Bifrost is enabled (critical for GPU)
@@ -210,7 +219,7 @@ configure_kernel() {
     ./scripts/config --disable CONFIG_DRM_PANFROST
 
     # Update config with new settings
-    make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
+    quiet_run make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
 
     log "Kernel configuration complete"
     cd "${PROJECT_ROOT}"
@@ -222,7 +231,7 @@ build_kernel() {
     cd "${KERNEL_DIR}"
 
     # Build kernel image, DTBs, and modules
-    make -j"${CORES}" ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
+    quiet_run make -j"${CORES}" ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
         Image dtbs modules || error "Kernel build failed"
 
     log "✓ Kernel build complete"
@@ -256,7 +265,7 @@ build_deb_packages() {
 
     # Build deb packages (creates in parent directory)
     KDEB_PKGVERSION="${pkg_version}" \
-    make -j"${CORES}" ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
+    quiet_run make -j"${CORES}" ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
         bindeb-pkg || error "Package build failed"
 
     cd "${PROJECT_ROOT}"
