@@ -568,6 +568,49 @@ GPU not working:
   - Check: ls -la /dev/mali0
   - Check: ls -la /usr/lib/aarch64-linux-gnu/libmali*
 
+## Manual Boot (If U-Boot doesn't auto-boot)
+
+If the board doesn't automatically boot from SD, use these U-Boot commands:
+
+1. Interrupt U-Boot (press any key during countdown)
+
+2. Load kernel and device tree:
+   ext4load mmc 1:1 0x02080000 /Image
+   ext4load mmc 1:1 0x0a100000 /${DTB_NAME}
+
+3. Set boot arguments:
+   setenv bootargs console=ttyS2,1500000 root=/dev/mmcblk1p2 rootwait rw
+
+4. Boot:
+   booti 0x02080000 - 0x0a100000
+
+Note: If using SD in slot 0, change mmc 1:1 to mmc 0:1 and root=/dev/mmcblk0p2
+
+## eMMC Provisioning Workflow
+
+To install to internal eMMC storage:
+
+1. Boot from SD card (as above)
+2. Login: rock / rock
+3. Run provisioning tool:
+   sudo setup-emmc
+
+4. The tool will:
+   - Detect SD card and eMMC automatically
+   - Partition and format eMMC
+   - Copy entire system to eMMC (takes ~5 minutes)
+   - Configure boot loader
+
+5. Shutdown and remove SD card:
+   sudo poweroff
+
+6. Power on - board will boot from eMMC
+
+This workflow is ideal for:
+- Testing new builds on SD before committing to eMMC
+- Provisioning multiple boards from single SD image
+- Recovery (boot from SD, reflash eMMC)
+
 ## Support
 
 Project: https://github.com/aaronsb/rk356x

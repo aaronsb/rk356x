@@ -692,6 +692,83 @@ stage_image() {
     log "Image assembly complete!"
 }
 
+stage_write_device() {
+    # Only offer if device was specified and not in AUTO_MODE
+    # (AUTO_MODE has its own flash_to_sd logic)
+    if [ -z "$SD_DEVICE" ] || [ "$AUTO_MODE" = true ]; then
+        return 0
+    fi
+
+    header "Stage 4: Write to Device (Optional)"
+
+    # Find the most recent image
+    local latest_img=$(ls -t "${OUTPUT_DIR}"/rk3568-debian-*.img 2>/dev/null | head -1)
+    if [ -z "$latest_img" ]; then
+        warn "No image file found to write"
+        return 1
+    fi
+
+    local img_size=$(du -h "$latest_img" | cut -f1)
+
+    echo
+    info "Image:  $latest_img"
+    info "Size:   $img_size"
+    info "Target: ${SD_DEVICE}"
+    echo
+
+    # Check if device exists
+    if [ ! -b "$SD_DEVICE" ]; then
+        error "Device $SD_DEVICE is not a block device"
+    fi
+
+    # Show device info
+    local dev_size=$(sudo blockdev --getsize64 "$SD_DEVICE" 2>/dev/null | awk '{print int($1/1024/1024/1024)"GB"}')
+    local dev_model=$(sudo lsblk -ndo MODEL "$SD_DEVICE" 2>/dev/null || echo "Unknown")
+
+    info "Device info:"
+    echo "  Model: $dev_model"
+    echo "  Size:  $dev_size"
+    echo
+
+    # Safety check - don't write to obviously wrong devices
+    case "$SD_DEVICE" in
+        /dev/sda|/dev/nvme0n1|/dev/vda)
+            warn "⚠️  WARNING: $SD_DEVICE looks like your primary system disk!"
+            warn "Are you SURE this is your SD card?"
+            ;;
+    esac
+
+    # Ask confirmation
+    echo -e "${YELLOW}⚠️  WARNING: This will ERASE all data on ${SD_DEVICE}${NC}"
+    read -p "Write image to device? [y/N]: " -n 1 -r
+    echo
+
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        log "Skipped device write"
+        return 0
+    fi
+
+    # Write image
+    log "Writing image to ${SD_DEVICE}"
+    log "This will take several minutes"
+
+    if sudo dd if="$latest_img" of="$SD_DEVICE" bs=4M status=progress conv=fsync; then
+        sync
+        sudo eject "$SD_DEVICE" 2>/dev/null || true
+        echo
+        log "✓ Image written successfully to ${SD_DEVICE}"
+        log ""
+        log "You can now:"
+        log "  1. Remove SD card"
+        log "  2. Insert into RK3568 board"
+        log "  3. Power on and boot"
+        log "  4. Login: rock / rock"
+        log "  5. (Optional) Run: sudo setup-emmc"
+    else
+        error "Failed to write image to ${SD_DEVICE}"
+    fi
+}
+
 # ============================================================================
 # Main Workflow
 # ============================================================================
@@ -838,6 +915,10 @@ main() {
     echo
 
     stage_image
+    echo
+
+    # Offer to write to device if --device specified (not in AUTO_MODE)
+    stage_write_device
     echo
 
     # Auto mode: flash to SD card

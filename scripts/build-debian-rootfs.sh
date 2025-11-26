@@ -323,20 +323,153 @@ if [ "$PROFILE" = "full" ]; then
         ethtool \
         i2c-tools \
         usbutils \
-        pciutils
+        pciutils \
+        rsync \
+        parted
 else
-    # Minimal profile: essential tools only
+    # Minimal profile: essential tools only (+ provisioning tools)
     apt-get install -y $APT_OPTS \
         nano \
         wget \
         htop \
-        ethtool
+        ethtool \
+        rsync \
+        parted
 fi
 
 # Create user
 useradd -m -s /bin/bash -G sudo,video,audio,dialout rock
 echo "rock:rock" | chpasswd
 echo "root:root" | chpasswd
+
+# Install eMMC provisioning script
+mkdir -p /usr/local/bin
+cat > /usr/local/bin/setup-emmc << 'EMMC_SCRIPT'
+#!/bin/bash
+set -e
+
+# Setup eMMC - Provisions internal storage from SD card
+# Run this after booting from SD card
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+log() { echo -e "${GREEN}==>${NC} $*"; }
+warn() { echo -e "${YELLOW}⚠${NC} $*"; }
+error() { echo -e "${RED}✗${NC} $*" >&2; exit 1; }
+
+echo "========================================"
+echo "eMMC Provisioning Tool"
+echo "========================================"
+echo ""
+
+# Detect devices
+ROOT_DEV=$(findmnt -n -o SOURCE /)
+case "$ROOT_DEV" in
+    *mmcblk0p*)
+        SD_DEV="/dev/mmcblk0"
+        EMMC_DEV="/dev/mmcblk1"
+        ;;
+    *mmcblk1p*)
+        SD_DEV="/dev/mmcblk1"
+        EMMC_DEV="/dev/mmcblk0"
+        ;;
+    *)
+        error "Cannot determine SD/eMMC devices. Are you booted from SD card?"
+        ;;
+esac
+
+log "Detected devices:"
+log "  SD card (boot): ${SD_DEV}"
+log "  eMMC (target):  ${EMMC_DEV}"
+echo ""
+
+# Confirm
+warn "This will ERASE all data on ${EMMC_DEV}"
+read -p "Continue? (y/N) " -n 1 -r
+echo
+[[ ! $REPLY =~ ^[Yy]$ ]] && error "Cancelled"
+
+# Find boot partition and get boot config
+BOOT_PART="${SD_DEV}p1"
+BOOT_MNT=$(mktemp -d)
+mount "$BOOT_PART" "$BOOT_MNT"
+
+DTB_NAME=$(ls "$BOOT_MNT"/rk*.dtb 2>/dev/null | head -1 | xargs basename)
+[ -z "$DTB_NAME" ] && error "No DTB found on boot partition"
+
+log "Boot configuration:"
+log "  DTB: ${DTB_NAME}"
+
+# Partition eMMC
+log "Partitioning eMMC..."
+parted -s "${EMMC_DEV}" mklabel gpt
+parted -s "${EMMC_DEV}" mkpart primary ext4 2048s 526336s      # Boot: 1MB-257MB
+parted -s "${EMMC_DEV}" mkpart primary ext4 526337s 100%       # Rootfs: 257MB-end
+parted -s "${EMMC_DEV}" set 1 boot on
+
+sleep 2
+partprobe "${EMMC_DEV}" 2>/dev/null || true
+
+# Format
+log "Formatting partitions..."
+mkfs.ext4 -F -L "BOOT" "${EMMC_DEV}p1" > /dev/null
+mkfs.ext4 -F -L "rootfs" "${EMMC_DEV}p2" > /dev/null
+
+# Mount eMMC
+EMMC_BOOT=$(mktemp -d)
+EMMC_ROOT=$(mktemp -d)
+mount "${EMMC_DEV}p1" "$EMMC_BOOT"
+mount "${EMMC_DEV}p2" "$EMMC_ROOT"
+
+# Copy boot files
+log "Copying kernel and DTB..."
+cp "$BOOT_MNT"/Image "$EMMC_BOOT/"
+cp "$BOOT_MNT"/*.dtb "$EMMC_BOOT/" 2>/dev/null || true
+
+# Create extlinux.conf for eMMC boot
+log "Creating boot configuration..."
+mkdir -p "$EMMC_BOOT/extlinux"
+cat > "$EMMC_BOOT/extlinux/extlinux.conf" << EOF
+default debian
+timeout 3
+
+label debian
+    kernel /Image
+    fdt /${DTB_NAME}
+    append console=ttyS2,1500000 root=${EMMC_DEV}p2 rootwait rw
+EOF
+
+# Copy rootfs
+log "Copying root filesystem (this will take several minutes)..."
+rsync -aAXv --exclude={"/dev/*","/proc/*","/sys/*","/tmp/*","/run/*","/mnt/*","/boot/*"} / "$EMMC_ROOT/" > /dev/null
+
+# Create essential directories
+mkdir -p "$EMMC_ROOT"/{dev,proc,sys,tmp,run,mnt,boot}
+
+# Cleanup
+log "Syncing and unmounting..."
+umount "$EMMC_BOOT"
+umount "$EMMC_ROOT"
+umount "$BOOT_MNT"
+rmdir "$EMMC_BOOT" "$EMMC_ROOT" "$BOOT_MNT"
+sync
+
+echo ""
+log "========================================"
+log "✓ eMMC provisioning complete!"
+log "========================================"
+echo ""
+log "Next steps:"
+log "  1. Shutdown: sudo poweroff"
+log "  2. Remove SD card"
+log "  3. Power on - board will boot from eMMC"
+echo ""
+EMMC_SCRIPT
+
+chmod +x /usr/local/bin/setup-emmc
 
 # Enable services
 if [ "$PROFILE" = "full" ]; then
