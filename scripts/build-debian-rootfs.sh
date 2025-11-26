@@ -81,6 +81,7 @@ ROOTFS_IMAGE="${ROOTFS_DIR}/debian-rootfs.img"
 ROOTFS_SIZE="4G"  # Adjust as needed
 
 BOARD="${1:-rk3568_sz3568}"
+PROFILE="${PROFILE:-minimal}"  # "minimal" or "full"
 
 # Colors
 RED='\033[0;31m'
@@ -173,12 +174,13 @@ customize_rootfs() {
     log "Customizing rootfs with chroot..."
 
     # Create customization script
-    cat << 'EOF' | maybe_sudo tee "${ROOTFS_WORK}/tmp/customize.sh" > /dev/null
+    cat << EOF | maybe_sudo tee "${ROOTFS_WORK}/tmp/customize.sh" > /dev/null
 #!/bin/bash
 set -e
 
 export DEBIAN_FRONTEND=noninteractive
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PROFILE="${PROFILE}"
 
 # Disable Python byte-compilation to avoid QEMU segfaults during package installation
 export PYTHONDONTWRITEBYTECODE=1
@@ -216,34 +218,66 @@ apt-get install -y \
 
 # Install network firmware and tools
 # Note: Realtek firmware is included in linux-firmware on Ubuntu
-apt-get install -y \
-    linux-firmware \
-    wireless-tools \
-    wpasupplicant \
-    iw \
-    rfkill
+if [ "$PROFILE" = "full" ]; then
+    # Full profile: all firmware
+    apt-get install -y \
+        linux-firmware \
+        wireless-tools \
+        wpasupplicant \
+        iw \
+        rfkill
+else
+    # Minimal profile: only essential WiFi tools (firmware from kernel modules)
+    apt-get install -y \
+        wpasupplicant \
+        iw
+fi
 
 # Generate locales
 locale-gen en_US.UTF-8
 update-locale LANG=en_US.UTF-8
 
 # Install XFCE desktop
-apt-get install -y \
-    xfce4 \
-    xfce4-terminal \
-    lightdm \
-    xinit \
-    x11-xserver-utils
+if [ "$PROFILE" = "full" ]; then
+    # Full profile: complete XFCE with all plugins and display manager
+    apt-get install -y \
+        xfce4 \
+        xfce4-terminal \
+        lightdm \
+        xinit \
+        x11-xserver-utils
+else
+    # Minimal profile: core XFCE only (no extra plugins, games, etc)
+    apt-get install -y \
+        xfce4-session \
+        xfwm4 \
+        xfdesktop4 \
+        xfce4-panel \
+        xfce4-settings \
+        xfce4-terminal \
+        xserver-xorg-core \
+        xserver-xorg-input-libinput \
+        xserver-xorg-video-fbdev \
+        xinit \
+        dbus-x11
+fi
 
 # Install graphics and multimedia
 apt-get install -y \
     libdrm2 \
     mesa-utils \
-    gstreamer1.0-plugins-base \
-    gstreamer1.0-plugins-good \
-    gstreamer1.0-plugins-bad \
-    gstreamer1.0-plugins-ugly \
-    gstreamer1.0-libav
+    libgles2 \
+    libegl1
+
+if [ "$PROFILE" = "full" ]; then
+    # Full profile: add GStreamer for media playback
+    apt-get install -y \
+        gstreamer1.0-plugins-base \
+        gstreamer1.0-plugins-good \
+        gstreamer1.0-plugins-bad \
+        gstreamer1.0-plugins-ugly \
+        gstreamer1.0-libav
+fi
 
 # Install browser (WebKitGTK-based)
 apt-get install -y \
@@ -253,17 +287,27 @@ apt-get install -y \
 echo "Mali GPU package will be installed separately"
 
 # Install utilities
-apt-get install -y \
-    vim \
-    git \
-    wget \
-    curl \
-    htop \
-    net-tools \
-    ethtool \
-    i2c-tools \
-    usbutils \
-    pciutils
+if [ "$PROFILE" = "full" ]; then
+    # Full profile: development and debugging tools
+    apt-get install -y \
+        vim \
+        git \
+        wget \
+        curl \
+        htop \
+        net-tools \
+        ethtool \
+        i2c-tools \
+        usbutils \
+        pciutils
+else
+    # Minimal profile: essential tools only
+    apt-get install -y \
+        nano \
+        wget \
+        htop \
+        ethtool
+fi
 
 # Create user
 useradd -m -s /bin/bash -G sudo,video,audio,dialout rock
@@ -272,8 +316,10 @@ echo "root:root" | chpasswd
 
 # Enable services
 systemctl enable NetworkManager
-systemctl enable lightdm
 systemctl enable ssh
+if [ "$PROFILE" = "full" ]; then
+    systemctl enable lightdm
+fi
 
 # Note: apt cache is NOT cleaned here - it's bind-mounted for reuse across builds
 
@@ -439,6 +485,8 @@ cleanup() {
 
 main() {
     log "Building Debian rootfs for RK3568"
+    log "Profile: ${PROFILE}"
+    log ""
 
     check_deps
     download_ubuntu_base
@@ -449,9 +497,18 @@ main() {
     create_image
     cleanup
 
+    log ""
     log "✓ Build complete!"
+    log "Profile: ${PROFILE}"
     log "Rootfs image: ${ROOTFS_IMAGE}"
     log ""
+    if [ "$PROFILE" = "minimal" ]; then
+        log "Minimal profile notes:"
+        log "  - No display manager (lightdm): Login and run 'startx' to start XFCE"
+        log "  - No GStreamer plugins: Install if you need video playback"
+        log "  - To build full profile: PROFILE=full ./scripts/build-debian-rootfs.sh"
+        log ""
+    fi
     log "Next steps:"
     log "1. Build kernel with: ./scripts/build-kernel.sh"
     log "2. Flash to SD card with: ./scripts/flash-image.sh"
