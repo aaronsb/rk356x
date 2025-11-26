@@ -505,9 +505,9 @@ create_image() {
     # Create ext4 filesystem
     if [ "$QUIET_MODE" = "true" ]; then
         echo -e "${YELLOW}▸${NC} Creating ext4 filesystem"
-        maybe_sudo mkfs.ext4 -L "rootfs" "${ROOTFS_IMAGE}" > /dev/null 2>&1
+        maybe_sudo mkfs.ext4 -F -L "rootfs" "${ROOTFS_IMAGE}" > /dev/null 2>&1
     else
-        maybe_sudo mkfs.ext4 -L "rootfs" "${ROOTFS_IMAGE}"
+        maybe_sudo mkfs.ext4 -F -L "rootfs" "${ROOTFS_IMAGE}"
     fi
 
     # Mount and copy
