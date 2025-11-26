@@ -187,6 +187,23 @@ export DEB_PYTHON_INSTALL_LAYOUT=deb_system
 # Update package lists
 apt-get update
 
+# Disable py3compile/py3clean to prevent Python segfaults in QEMU during package installation
+# Bytecode will be generated on first import when running on real ARM hardware
+if [ -f /usr/bin/py3compile ]; then
+    mv /usr/bin/py3compile /usr/bin/py3compile.bak
+    cat > /usr/bin/py3compile << 'PYCOMPILE_STUB'
+#!/bin/sh
+# Stub to prevent Python segfaults in QEMU during package installation
+# Bytecode will be generated on first import on real hardware
+exit 0
+PYCOMPILE_STUB
+    chmod +x /usr/bin/py3compile
+fi
+if [ -f /usr/bin/py3clean ]; then
+    mv /usr/bin/py3clean /usr/bin/py3clean.bak
+    ln -sf /usr/bin/py3compile /usr/bin/py3clean
+fi
+
 # Install essential packages
 apt-get install -y \
     systemd systemd-sysv \
