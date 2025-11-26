@@ -398,7 +398,7 @@ stage_kernel() {
 
     if echo "$status" | grep -q "FOUND"; then
         echo -e "${GREEN}${ICON_CHECK} Kernel artifacts found:${NC}"
-        echo "$status" | grep -v "FOUND"
+        echo "$status" | grep -v "FOUND" || true
         echo
 
         # Auto mode: skip if artifacts exist
@@ -446,7 +446,7 @@ stage_rootfs() {
 
     if echo "$status" | grep -q "FOUND"; then
         echo -e "${GREEN}${ICON_CHECK} Rootfs artifact found:${NC}"
-        echo "$status" | grep -v "FOUND"
+        echo "$status" | grep -v "FOUND" || true
         echo
 
         # Auto mode: skip if artifacts exist
@@ -506,7 +506,7 @@ stage_image() {
 
     if echo "$status" | grep -q "FOUND"; then
         echo -e "${GREEN}${ICON_CHECK} Final image found:${NC}"
-        echo "$status" | grep -v "FOUND"
+        echo "$status" | grep -v "FOUND" || true
         echo
 
         # Auto mode: skip if artifacts exist
@@ -586,7 +586,7 @@ show_summary() {
     echo -e "${BOLD}1. Kernel (.deb packages)${NC}"
     local kernel_status=$(check_kernel_artifacts)
     if echo "$kernel_status" | grep -q "FOUND"; then
-        echo "$kernel_status" | grep -v "FOUND"
+        echo "$kernel_status" | grep -v "FOUND" || true
     else
         echo "   ${RED}Not found${NC}"
     fi
@@ -595,7 +595,7 @@ show_summary() {
     echo -e "${BOLD}2. Rootfs (filesystem image)${NC}"
     local rootfs_status=$(check_rootfs_artifact)
     if echo "$rootfs_status" | grep -q "FOUND"; then
-        echo "$rootfs_status" | grep -v "FOUND"
+        echo "$rootfs_status" | grep -v "FOUND" || true
     else
         echo "   ${RED}Not found${NC}"
     fi
@@ -604,7 +604,7 @@ show_summary() {
     echo -e "${BOLD}3. Final Image (flashable SD/eMMC)${NC}"
     local image_status=$(check_image_artifacts)
     if echo "$image_status" | grep -q "FOUND"; then
-        echo "$image_status" | grep -v "FOUND"
+        echo "$image_status" | grep -v "FOUND" || true
         echo
 
         local final_image=$(ls -1t "${OUTPUT_DIR}"/rk3568-debian-*.img 2>/dev/null | grep -v '\.xz$' | head -1)
