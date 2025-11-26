@@ -66,6 +66,12 @@ warn() { echo -e "${YELLOW}⚠${NC} $*"; }
 error() { echo -e "${RED}✗${NC} $*" >&2; exit 1; }
 
 check_deps() {
+    # Skip dependency check if running in Docker (dependencies are in Dockerfile)
+    if [ -f /.dockerenv ] || [ -n "$CONTAINER" ]; then
+        log "Running in Docker container (dependencies pre-installed)"
+        return 0
+    fi
+
     log "Checking dependencies..."
 
     local deps=(git make gcc g++ bison flex libssl-dev libelf-dev bc kmod debhelper)
