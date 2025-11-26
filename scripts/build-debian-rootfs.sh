@@ -241,7 +241,7 @@ EOF
     # Run customization
     if [ "$QUIET_MODE" = "true" ]; then
         echo -e "${YELLOW}▸${NC} Installing packages in chroot (systemd, NetworkManager, XFCE, etc)"
-        maybe_sudo chroot "${ROOTFS_WORK}" /tmp/customize.sh > /dev/null 2>&1 || {
+        maybe_sudo chroot "${ROOTFS_WORK}" /bin/bash /tmp/customize.sh > /dev/null 2>&1 || {
             maybe_sudo umount -lf "${ROOTFS_WORK}/proc" || true
             maybe_sudo umount -lf "${ROOTFS_WORK}/sys" || true
             maybe_sudo umount -lf "${ROOTFS_WORK}/dev/pts" || true
@@ -249,7 +249,7 @@ EOF
             error "Customization failed"
         }
     else
-        maybe_sudo chroot "${ROOTFS_WORK}" /tmp/customize.sh || {
+        maybe_sudo chroot "${ROOTFS_WORK}" /bin/bash /tmp/customize.sh || {
             maybe_sudo umount -lf "${ROOTFS_WORK}/proc" || true
             maybe_sudo umount -lf "${ROOTFS_WORK}/sys" || true
             maybe_sudo umount -lf "${ROOTFS_WORK}/dev/pts" || true
