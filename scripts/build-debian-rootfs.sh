@@ -317,16 +317,17 @@ EOF
 install_mali_gpu() {
     log "Installing Mali GPU drivers..."
 
-    # Mali G52 package URL (from Kylinos archive - compatible with RK3568)
-    local mali_pkg="libmali-bifrost-g52-g13p0-x11-wayland-gbm_1.9-1rk6_arm64.deb"
-    local mali_url="http://archive.kylinos.cn/kylin/KYLIN-ALL/pool/main/libm/libmali/${mali_pkg}"
+    # Mali G52 package URL (from OrangePi RK356x repository)
+    local mali_pkg="libmali-bifrost-g52-g13p0-x11-gbm_1.9-1_arm64.deb"
+    local mali_url="https://github.com/orangepi-xunlong/rk-rootfs-build/raw/rk356x_packages/common/libmali/${mali_pkg}"
 
     # Download Mali package
     mkdir -p "${ROOTFS_DIR}/mali-pkg"
     if [ ! -f "${ROOTFS_DIR}/mali-pkg/${mali_pkg}" ]; then
         log "Downloading Mali GPU package..."
         wget -P "${ROOTFS_DIR}/mali-pkg" "${mali_url}" || {
-            warn "Failed to download Mali package from Kylinos"
+            warn "Failed to download Mali package from OrangePi repository"
+            warn "GPU acceleration may not work without this package"
             warn "You can manually download and install later"
             return
         }
