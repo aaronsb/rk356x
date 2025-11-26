@@ -776,7 +776,17 @@ show_summary() {
 }
 
 main() {
+    # Set up build logging
+    BUILD_LOG="${OUTPUT_DIR}/build-$(date +%Y%m%d-%H%M%S).log"
+    mkdir -p "${OUTPUT_DIR}"
+
+    # Use tee to write to both stdout and log file
+    exec > >(tee -a "${BUILD_LOG}")
+    exec 2>&1
+
     show_banner
+    info "Build log: ${BUILD_LOG}"
+    echo
 
     # Handle clean-only mode (no build flags specified)
     if [ "$CLEAN_MODE" = true ] && \
