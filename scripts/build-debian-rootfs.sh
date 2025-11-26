@@ -42,10 +42,19 @@ if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
         # Re-exec this script in Docker (needs --privileged for chroot/mount)
         # Must run as root for mount/chroot operations
         echo "==> Running rootfs build in Docker container (privileged for chroot)..."
+
+        # Create apt cache directories on host for persistence across builds
+        mkdir -p "${PROJECT_ROOT}/.cache/rootfs-apt-cache"
+        mkdir -p "${PROJECT_ROOT}/.cache/rootfs-apt-lists"
+
         docker run --rm -it \
             --privileged \
             -v "${PROJECT_ROOT}:/work" \
+            -v "${PROJECT_ROOT}/.cache/rootfs-apt-cache:/apt-cache" \
+            -v "${PROJECT_ROOT}/.cache/rootfs-apt-lists:/apt-lists" \
             -e CONTAINER=1 \
+            -e APT_CACHE_DIR=/apt-cache \
+            -e APT_LISTS_DIR=/apt-lists \
             -w /work \
             "${DOCKER_IMAGE}:latest" \
             "/work/scripts/$(basename "$0")" "$@"
@@ -245,9 +254,7 @@ systemctl enable NetworkManager
 systemctl enable lightdm
 systemctl enable ssh
 
-# Clean up
-apt-get clean
-rm -rf /var/lib/apt/lists/*
+# Note: apt cache is NOT cleaned here - it's bind-mounted for reuse across builds
 
 echo "Rootfs customization complete"
 EOF
@@ -260,10 +267,22 @@ EOF
     maybe_sudo mount --bind /dev "${ROOTFS_WORK}/dev"
     maybe_sudo mount --bind /dev/pts "${ROOTFS_WORK}/dev/pts"
 
+    # Mount apt cache directories if available (for package caching across builds)
+    if [ -n "$APT_CACHE_DIR" ] && [ -d "$APT_CACHE_DIR" ]; then
+        maybe_sudo mkdir -p "${ROOTFS_WORK}/var/cache/apt"
+        maybe_sudo mount --bind "$APT_CACHE_DIR" "${ROOTFS_WORK}/var/cache/apt"
+    fi
+    if [ -n "$APT_LISTS_DIR" ] && [ -d "$APT_LISTS_DIR" ]; then
+        maybe_sudo mkdir -p "${ROOTFS_WORK}/var/lib/apt/lists"
+        maybe_sudo mount --bind "$APT_LISTS_DIR" "${ROOTFS_WORK}/var/lib/apt/lists"
+    fi
+
     # Run customization
     if [ "$QUIET_MODE" = "true" ]; then
         echo -e "${YELLOW}▸${NC} Installing packages in chroot (systemd, NetworkManager, XFCE, etc)"
         maybe_sudo chroot "${ROOTFS_WORK}" /bin/bash /tmp/customize.sh > /dev/null 2>&1 || {
+            maybe_sudo umount -lf "${ROOTFS_WORK}/var/cache/apt" || true
+            maybe_sudo umount -lf "${ROOTFS_WORK}/var/lib/apt/lists" || true
             maybe_sudo umount -lf "${ROOTFS_WORK}/proc" || true
             maybe_sudo umount -lf "${ROOTFS_WORK}/sys" || true
             maybe_sudo umount -lf "${ROOTFS_WORK}/dev/pts" || true
@@ -272,6 +291,8 @@ EOF
         }
     else
         maybe_sudo chroot "${ROOTFS_WORK}" /bin/bash /tmp/customize.sh || {
+            maybe_sudo umount -lf "${ROOTFS_WORK}/var/cache/apt" || true
+            maybe_sudo umount -lf "${ROOTFS_WORK}/var/lib/apt/lists" || true
             maybe_sudo umount -lf "${ROOTFS_WORK}/proc" || true
             maybe_sudo umount -lf "${ROOTFS_WORK}/sys" || true
             maybe_sudo umount -lf "${ROOTFS_WORK}/dev/pts" || true
@@ -281,6 +302,8 @@ EOF
     fi
 
     # Cleanup mounts
+    maybe_sudo umount -lf "${ROOTFS_WORK}/var/cache/apt" || true
+    maybe_sudo umount -lf "${ROOTFS_WORK}/var/lib/apt/lists" || true
     maybe_sudo umount -lf "${ROOTFS_WORK}/proc" || true
     maybe_sudo umount -lf "${ROOTFS_WORK}/sys" || true
     maybe_sudo umount -lf "${ROOTFS_WORK}/dev/pts" || true
@@ -379,6 +402,8 @@ cleanup() {
     log "Cleaning up..."
 
     # Ensure everything is unmounted
+    maybe_sudo umount -lf "${ROOTFS_WORK}/var/cache/apt" 2>/dev/null || true
+    maybe_sudo umount -lf "${ROOTFS_WORK}/var/lib/apt/lists" 2>/dev/null || true
     maybe_sudo umount -lf "${ROOTFS_WORK}/proc" 2>/dev/null || true
     maybe_sudo umount -lf "${ROOTFS_WORK}/sys" 2>/dev/null || true
     maybe_sudo umount -lf "${ROOTFS_WORK}/dev/pts" 2>/dev/null || true

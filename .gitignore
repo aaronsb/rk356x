@@ -1,6 +1,7 @@
 # Build directories
 build/
 output/
+rootfs/
 
 # Buildroot (tracked separately, only external tree is versioned)
 buildroot/
