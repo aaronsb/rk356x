@@ -42,6 +42,7 @@ usage() {
     echo -e "${BOLD}OPTIONS:${NC}"
     echo "    --auto                Auto mode: build only what's missing, flash to SD card"
     echo "    --clean               Delete all build artifacts before starting"
+    echo "    --quiet               Quiet mode: hide verbose build output, show spinner"
     echo "    --non-interactive     Skip all prompts, rebuild everything"
     echo "    --kernel-only         Build kernel only"
     echo "    --rootfs-only         Build rootfs only"
@@ -94,6 +95,7 @@ usage() {
 BOARD=""
 AUTO_MODE=false
 CLEAN_MODE=false
+QUIET_MODE=false
 NON_INTERACTIVE=false
 KERNEL_ONLY=false
 ROOTFS_ONLY=false
@@ -110,6 +112,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --clean)
             CLEAN_MODE=true
+            shift
+            ;;
+        --quiet)
+            QUIET_MODE=true
             shift
             ;;
         --device)

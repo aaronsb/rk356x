@@ -18,12 +18,17 @@ if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
         fi
 
         # Re-exec this script in Docker (needs --privileged for chroot/mount)
+        # Use SUDO_UID/SUDO_GID if running via sudo, otherwise use current user
+        local user_id="${SUDO_UID:-$(id -u)}"
+        local group_id="${SUDO_GID:-$(id -g)}"
+
         echo "==> Running rootfs build in Docker container (privileged for chroot)..."
         exec docker run --rm -it \
             --privileged \
             -v "${PROJECT_ROOT}:/work" \
             -e CONTAINER=1 \
             -w /work \
+            -u "${user_id}:${group_id}" \
             "${DOCKER_IMAGE}:latest" \
             "/work/scripts/$(basename "$0")" "$@"
     else
