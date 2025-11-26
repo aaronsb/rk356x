@@ -205,8 +205,19 @@ config MAXIO_PHY\
         log "Applying kernel patches..."
         cd "${KERNEL_DIR}"
 
+        # Reset only patch-affected files, not our custom Makefile/Kconfig changes
+        # Save the Makefiles and Kconfigs we just modified
+        cp arch/arm64/boot/dts/rockchip/Makefile /tmp/dtb_makefile.tmp 2>/dev/null || true
+        cp drivers/net/phy/Makefile /tmp/phy_makefile.tmp 2>/dev/null || true
+        cp drivers/net/phy/Kconfig /tmp/phy_kconfig.tmp 2>/dev/null || true
+
         # Reset any previously applied patches
         git checkout -- . 2>/dev/null || true
+
+        # Restore our custom additions
+        [ -f /tmp/dtb_makefile.tmp ] && cp /tmp/dtb_makefile.tmp arch/arm64/boot/dts/rockchip/Makefile
+        [ -f /tmp/phy_makefile.tmp ] && cp /tmp/phy_makefile.tmp drivers/net/phy/Makefile
+        [ -f /tmp/phy_kconfig.tmp ] && cp /tmp/phy_kconfig.tmp drivers/net/phy/Kconfig
 
         for patch in "${PROJECT_ROOT}"/external/custom/patches/linux/*.patch; do
             if [ -f "$patch" ]; then
