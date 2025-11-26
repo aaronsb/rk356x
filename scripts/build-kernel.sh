@@ -128,7 +128,7 @@ clone_kernel() {
 }
 
 copy_custom_files() {
-    log "Copying custom DTBs and patches..."
+    log "Copying custom DTBs and drivers..."
 
     # Copy custom DTBs
     if [ -d "${PROJECT_ROOT}/external/custom/board/rk3568/dts/rockchip" ]; then
@@ -162,6 +162,42 @@ copy_custom_files() {
         done
     else
         warn "No custom DTBs found in external/custom/board/rk3568/dts/rockchip"
+    fi
+
+    # Copy custom PHY drivers
+    if [ -f "${PROJECT_ROOT}/external/custom/board/rk3568/drivers/maxio.c" ]; then
+        log "Copying MAXIO PHY driver..."
+        cp -v "${PROJECT_ROOT}/external/custom/board/rk3568/drivers/maxio.c" \
+            "${KERNEL_DIR}/drivers/net/phy/"
+
+        # Add to PHY Kconfig
+        local kconfig="${KERNEL_DIR}/drivers/net/phy/Kconfig"
+        if ! grep -q "config MAXIO_PHY" "$kconfig" 2>/dev/null; then
+            log "Adding MAXIO_PHY to Kconfig..."
+            # Find MOTORCOMM_PHY and add MAXIO_PHY after it
+            sed -i '/config MOTORCOMM_PHY/,/Currently supports/{
+                /Currently supports/a\
+\
+config MAXIO_PHY\
+\ttristate "Maxio PHYs"\
+\thelp\
+\t  Enables support for Maxio network PHYs.\
+\t  Currently supports the MAE0621A Gigabit PHY.
+            }' "$kconfig"
+            log "✓ Added MAXIO_PHY to Kconfig"
+        else
+            log "✓ MAXIO_PHY already in Kconfig"
+        fi
+
+        # Add to PHY Makefile
+        local makefile="${KERNEL_DIR}/drivers/net/phy/Makefile"
+        if ! grep -q "maxio.o" "$makefile" 2>/dev/null; then
+            log "Adding maxio.o to Makefile..."
+            sed -i '/motorcomm.o/a\obj-$(CONFIG_MAXIO_PHY)\t\t+= maxio.o' "$makefile"
+            log "✓ Added maxio.o to Makefile"
+        else
+            log "✓ maxio.o already in Makefile"
+        fi
     fi
 
     # Apply patches
