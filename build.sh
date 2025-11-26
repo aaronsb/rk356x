@@ -579,11 +579,20 @@ stage_kernel() {
 }
 
 stage_rootfs() {
+    local profile="${PROFILE:-minimal}"
     header "Stage 2: Rootfs Build (Ubuntu 24.04 + XFCE)"
 
-    info "Desktop:  XFCE4 + LightDM"
+    info "Profile:  ${profile}"
+    if [ "$profile" = "full" ]; then
+        info "Desktop:  XFCE4 + LightDM"
+        info "Network:  NetworkManager"
+        info "Browser:  Epiphany (GNOME Web)"
+    else
+        info "Desktop:  XFCE4 (startx)"
+        info "Network:  systemd-networkd"
+        info "Browser:  None (install manually if needed)"
+    fi
     info "GPU:      libmali-bifrost-g52-g13p0"
-    info "Browser:  Epiphany (WebKitGTK)"
     info "Output:   ${ROOTFS_IMAGE}"
     echo
 
