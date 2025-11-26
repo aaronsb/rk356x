@@ -286,7 +286,12 @@ apt-get install -y $APT_OPTS \
     libdrm2 \
     mesa-utils \
     libgles2 \
-    libegl1
+    libegl1 \
+    libgbm1 \
+    libx11-6 \
+    libxcb1 \
+    libxcb-dri2-0 \
+    libxcb-dri3-0
 
 if [ "$PROFILE" = "full" ]; then
     # Full profile: add GStreamer for media playback
@@ -508,12 +513,17 @@ create_image() {
     # Mount and copy
     local mount_point="${ROOTFS_DIR}/mnt"
     mkdir -p "${mount_point}"
-    maybe_sudo mount "${ROOTFS_IMAGE}" "${mount_point}"
+
+    # Explicitly use loop device
+    local loop_device=$(maybe_sudo losetup -f)
+    maybe_sudo losetup "${loop_device}" "${ROOTFS_IMAGE}"
+    maybe_sudo mount "${loop_device}" "${mount_point}"
 
     [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Copying rootfs to image"
     maybe_sudo cp -a "${ROOTFS_WORK}"/* "${mount_point}/"
 
     maybe_sudo umount "${mount_point}"
+    maybe_sudo losetup -d "${loop_device}"
 
     # Optimize
     if [ "$QUIET_MODE" = "true" ]; then
