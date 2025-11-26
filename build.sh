@@ -590,7 +590,7 @@ stage_rootfs() {
     else
         info "Desktop:  XFCE4 (startx)"
         info "Network:  systemd-networkd"
-        info "Browser:  None (install manually if needed)"
+        info "Browser:  Chromium"
     fi
     info "GPU:      libmali-bifrost-g52-g13p0"
     info "Output:   ${ROOTFS_IMAGE}"
