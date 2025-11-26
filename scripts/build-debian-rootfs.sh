@@ -179,7 +179,7 @@ apt-get install -y \
     systemd systemd-sysv \
     network-manager \
     openssh-server \
-    maybe_sudo \
+    sudo \
     ca-certificates \
     locales \
     tzdata
