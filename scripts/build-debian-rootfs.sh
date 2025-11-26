@@ -363,7 +363,7 @@ create_image() {
     log "Creating rootfs image..."
 
     # Calculate actual size needed
-    local rootfs_size=$(sudo du -sb "${ROOTFS_WORK}" | awk '{print $1}')
+    local rootfs_size=$(maybe_sudo du -sb "${ROOTFS_WORK}" | awk '{print $1}')
     local image_size=$((rootfs_size * 12 / 10))  # 120% of actual size
 
     log "Rootfs size: $((rootfs_size / 1024 / 1024))MB, Image size: $((image_size / 1024 / 1024))MB"
