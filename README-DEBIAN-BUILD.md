@@ -73,7 +73,7 @@ sudo apt install \
 
 ### Build Workflow
 
-#### Option 1: Build Everything (Recommended for first time)
+#### Complete Build Process
 
 ```bash
 # 1. Build kernel (creates .deb packages)
@@ -82,12 +82,19 @@ sudo apt install \
 # 2. Build rootfs (installs kernel .debs automatically)
 ./scripts/build-debian-rootfs.sh
 
-# 3. Assemble bootable image
-./scripts/assemble-image.sh rk3568_sz3568
+# 3. Assemble bootable image (uses existing U-Boot on board - safe!)
+sudo ./scripts/assemble-debian-image.sh rk3568_sz3568
 
 # 4. Flash to SD card
-sudo dd if=output/rk3568-sz3568.img of=/dev/sdX bs=4M status=progress conv=fsync
+sudo dd if=output/rk3568-debian-*.img of=/dev/sdX bs=4M status=progress conv=fsync
+# Or use the compressed .xz file with balenaEtcher
 ```
+
+**Total build time:**
+- Kernel build: ~10-15 minutes (first time)
+- Rootfs build: ~15-20 minutes (first time)
+- Image assembly: ~5-10 minutes
+- **Total: ~30-45 minutes** (vs 4-6 hours with Buildroot!)
 
 #### Option 2: Iterative Development
 
