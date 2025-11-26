@@ -194,9 +194,11 @@ configure_kernel() {
     cd "${KERNEL_DIR}"
 
     # Clean previous config
+    [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Cleaning previous kernel config"
     quiet_run make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- mrproper || true
 
     # Start with rockchip defconfig
+    [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Applying ${DEFCONFIG}"
     quiet_run make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- "${DEFCONFIG}"
 
     # Apply config fragment if exists
@@ -207,10 +209,12 @@ configure_kernel() {
         cat "${PROJECT_ROOT}/external/custom/board/rk3568/kernel.config" >> .config
 
         # Resolve dependencies
+        [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Resolving config dependencies"
         quiet_run make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
     fi
 
     # Ensure Mali Bifrost is enabled (critical for GPU)
+    [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Configuring Mali Bifrost GPU support"
     ./scripts/config --enable CONFIG_MALI_BIFROST
     ./scripts/config --set-str CONFIG_MALI_PLATFORM_NAME "rk"
     ./scripts/config --enable CONFIG_MALI_BIFROST_DEVFREQ
@@ -219,6 +223,7 @@ configure_kernel() {
     ./scripts/config --disable CONFIG_DRM_PANFROST
 
     # Update config with new settings
+    [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Finalizing kernel configuration"
     quiet_run make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
 
     log "Kernel configuration complete"
@@ -231,6 +236,7 @@ build_kernel() {
     cd "${KERNEL_DIR}"
 
     # Build kernel image, DTBs, and modules
+    [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Compiling kernel (Image + DTBs + modules)"
     quiet_run make -j"${CORES}" ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
         Image dtbs modules || error "Kernel build failed"
 
@@ -264,6 +270,7 @@ build_deb_packages() {
     log "Package version: ${pkg_version}"
 
     # Build deb packages (creates in parent directory)
+    [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Building .deb packages"
     KDEB_PKGVERSION="${pkg_version}" \
     quiet_run make -j"${CORES}" ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
         bindeb-pkg || error "Package build failed"

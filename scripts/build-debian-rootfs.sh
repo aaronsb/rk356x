@@ -111,6 +111,7 @@ extract_rootfs() {
     mkdir -p "${ROOTFS_WORK}"
 
     if [ "$QUIET_MODE" = "true" ]; then
+        echo -e "${YELLOW}▸${NC} Extracting Ubuntu base rootfs"
         sudo tar -xzf "${ROOTFS_DIR}/${UBUNTU_BASE}" -C "${ROOTFS_WORK}" 2>&1 | grep -v "tar:"
     else
         sudo tar -xzf "${ROOTFS_DIR}/${UBUNTU_BASE}" -C "${ROOTFS_WORK}"
@@ -228,6 +229,7 @@ EOF
 
     # Run customization
     if [ "$QUIET_MODE" = "true" ]; then
+        echo -e "${YELLOW}▸${NC} Installing packages in chroot (systemd, NetworkManager, XFCE, etc)"
         sudo chroot "${ROOTFS_WORK}" /tmp/customize.sh > /dev/null 2>&1 || {
             sudo umount -lf "${ROOTFS_WORK}/proc" || true
             sudo umount -lf "${ROOTFS_WORK}/sys" || true
@@ -276,6 +278,7 @@ install_mali_gpu() {
     sudo cp /usr/bin/qemu-aarch64-static "${ROOTFS_WORK}/usr/bin/" || true
 
     if [ "$QUIET_MODE" = "true" ]; then
+        echo -e "${YELLOW}▸${NC} Installing Mali Bifrost G52 driver"
         sudo chroot "${ROOTFS_WORK}" /bin/bash > /dev/null 2>&1 << 'CHROOT_EOF'
 set -e
 cd /tmp
@@ -310,6 +313,7 @@ create_image() {
 
     # Create ext4 filesystem
     if [ "$QUIET_MODE" = "true" ]; then
+        echo -e "${YELLOW}▸${NC} Creating ext4 filesystem"
         sudo mkfs.ext4 -L "rootfs" "${ROOTFS_IMAGE}" > /dev/null 2>&1
     else
         sudo mkfs.ext4 -L "rootfs" "${ROOTFS_IMAGE}"
@@ -320,12 +324,14 @@ create_image() {
     mkdir -p "${mount_point}"
     sudo mount "${ROOTFS_IMAGE}" "${mount_point}"
 
+    [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Copying rootfs to image"
     sudo cp -a "${ROOTFS_WORK}"/* "${mount_point}/"
 
     sudo umount "${mount_point}"
 
     # Optimize
     if [ "$QUIET_MODE" = "true" ]; then
+        echo -e "${YELLOW}▸${NC} Optimizing filesystem"
         sudo e2fsck -fy "${ROOTFS_IMAGE}" > /dev/null 2>&1 || true
         sudo resize2fs -M "${ROOTFS_IMAGE}" > /dev/null 2>&1
     else
