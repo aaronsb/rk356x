@@ -180,6 +180,10 @@ set -e
 export DEBIAN_FRONTEND=noninteractive
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+# Disable Python byte-compilation to avoid QEMU segfaults during package installation
+export PYTHONDONTWRITEBYTECODE=1
+export DEB_PYTHON_INSTALL_LAYOUT=deb_system
+
 # Update package lists
 apt-get update
 
