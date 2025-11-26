@@ -10,6 +10,21 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 # Auto-use Docker if not already in container
 if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
     if command -v docker &>/dev/null; then
+        # Ensure QEMU binfmt is registered on host (required for ARM64 chroot)
+        if [ ! -f /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then
+            echo "==> Setting up QEMU binfmt_misc for ARM64 emulation..."
+            if ! command -v qemu-aarch64-static &>/dev/null; then
+                echo "⚠ qemu-user-static not installed on host"
+                echo "  Install with: sudo apt install qemu-user-static binfmt-support"
+                exit 1
+            fi
+            # Register QEMU for ARM64 (requires docker with --privileged or direct registration)
+            docker run --rm --privileged multiarch/qemu-user-static --reset -p yes >/dev/null 2>&1 || {
+                echo "⚠ Failed to register QEMU binfmt. Trying direct registration..."
+                sudo update-binfmts --enable qemu-aarch64 2>/dev/null || true
+            }
+        fi
+
         # Build Docker image if needed
         DOCKER_IMAGE="rk3568-debian-builder"
         if ! docker image inspect "${DOCKER_IMAGE}:latest" &>/dev/null 2>&1; then
