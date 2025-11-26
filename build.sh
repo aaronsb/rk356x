@@ -41,6 +41,7 @@ usage() {
     echo
     echo -e "${BOLD}OPTIONS:${NC}"
     echo "    --auto                Auto mode: build only what's missing, flash to SD card"
+    echo "    --clean               Delete all build artifacts before starting"
     echo "    --non-interactive     Skip all prompts, rebuild everything"
     echo "    --kernel-only         Build kernel only"
     echo "    --rootfs-only         Build rootfs only"
@@ -67,6 +68,9 @@ usage() {
     echo "    # Interactive build (recommended for first time)"
     echo "    $0 rk3568_sz3568"
     echo
+    echo "    # Clean rebuild (delete all artifacts first)"
+    echo "    $0 --clean rk3568_sz3568"
+    echo
     echo "    # Non-interactive full rebuild"
     echo "    $0 --non-interactive rk3568_sz3568"
     echo
@@ -89,6 +93,7 @@ usage() {
 # Parse arguments
 BOARD=""
 AUTO_MODE=false
+CLEAN_MODE=false
 NON_INTERACTIVE=false
 KERNEL_ONLY=false
 ROOTFS_ONLY=false
@@ -101,6 +106,10 @@ while [[ $# -gt 0 ]]; do
         --auto)
             AUTO_MODE=true
             NON_INTERACTIVE=true
+            shift
+            ;;
+        --clean)
+            CLEAN_MODE=true
             shift
             ;;
         --device)
@@ -383,6 +392,58 @@ ask_yes_no() {
 }
 
 # ============================================================================
+# Clean Function
+# ============================================================================
+
+clean_artifacts() {
+    header "Cleaning Build Artifacts"
+
+    local cleaned=false
+
+    # Clean kernel artifacts
+    if [ -d "${PROJECT_ROOT}/output/kernel-debs" ]; then
+        info "Removing kernel .deb packages..."
+        rm -rf "${PROJECT_ROOT}/output/kernel-debs"
+        cleaned=true
+    fi
+
+    # Clean kernel source
+    if [ -d "${PROJECT_ROOT}/kernel-6.6" ]; then
+        info "Removing kernel source directory..."
+        rm -rf "${PROJECT_ROOT}/kernel-6.6"
+        cleaned=true
+    fi
+
+    # Clean rootfs artifacts
+    if [ -d "${PROJECT_ROOT}/rootfs/work" ]; then
+        info "Removing rootfs work directory..."
+        sudo rm -rf "${PROJECT_ROOT}/rootfs/work"
+        cleaned=true
+    fi
+
+    if [ -f "${PROJECT_ROOT}/rootfs/debian-rootfs.img" ]; then
+        info "Removing rootfs image..."
+        rm -f "${PROJECT_ROOT}/rootfs/debian-rootfs.img"
+        cleaned=true
+    fi
+
+    # Clean final images
+    if ls "${PROJECT_ROOT}/output"/rk3568-debian-*.img* &>/dev/null; then
+        info "Removing final images..."
+        rm -f "${PROJECT_ROOT}/output"/rk3568-debian-*.img*
+        cleaned=true
+    fi
+
+    if [ "$cleaned" = true ]; then
+        log "All build artifacts removed"
+    else
+        info "No artifacts found to clean"
+    fi
+
+    echo
+}
+
+# ============================================================================
 # Build Stage Functions
 # ============================================================================
 
@@ -632,6 +693,11 @@ show_summary() {
 
 main() {
     show_banner
+
+    # Clean artifacts if requested
+    if [ "$CLEAN_MODE" = true ]; then
+        clean_artifacts
+    fi
 
     # Handle single-stage builds
     if [ "$KERNEL_ONLY" = true ]; then
