@@ -7,6 +7,30 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
+# Auto-use Docker if not already in container
+if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
+    if command -v docker &>/dev/null; then
+        # Build Docker image if needed
+        DOCKER_IMAGE="rk3568-debian-builder"
+        if ! docker image inspect "${DOCKER_IMAGE}:latest" &>/dev/null 2>&1; then
+            echo "==> Building Docker image (one-time setup)..."
+            docker build -t "${DOCKER_IMAGE}:latest" -f "${PROJECT_ROOT}/Dockerfile" "${PROJECT_ROOT}"
+        fi
+
+        # Re-exec this script in Docker
+        echo "==> Running build in Docker container..."
+        exec docker run --rm -it \
+            -v "${PROJECT_ROOT}:/work" \
+            -e CONTAINER=1 \
+            -w /work \
+            -u "$(id -u):$(id -g)" \
+            "${DOCKER_IMAGE}:latest" \
+            "/work/scripts/$(basename "$0")" "$@"
+    else
+        echo "⚠ Docker not found, running on host (requires build dependencies installed)"
+    fi
+fi
+
 # Configuration
 KERNEL_VERSION="6.6"
 KERNEL_BRANCH="develop-6.6"

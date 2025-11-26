@@ -1,0 +1,13 @@
+# Ignore build artifacts and large directories when building Docker image
+
+buildroot/
+kernel-*/
+u-boot/
+output/
+rootfs/
+build/
+.git/
+*.img
+*.xz
+*.deb
+*.tar.gz

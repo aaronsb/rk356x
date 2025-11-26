@@ -63,8 +63,19 @@ This build system creates bootable Debian/Ubuntu images for Rockchip RK3568 boar
 
 ### Prerequisites
 
+**Option 1: Docker (Recommended - no dependencies needed!)**
+
 ```bash
-# Install build dependencies
+# Just install Docker
+sudo apt install docker.io
+sudo usermod -aG docker $USER  # Add yourself to docker group
+# Log out and back in for group to take effect
+```
+
+**Option 2: Native build (if you prefer not to use Docker)**
+
+```bash
+# Install build dependencies on host
 sudo apt install \
     qemu-user-static debootstrap wget \
     git make gcc g++ bison flex libssl-dev libelf-dev bc kmod debhelper \
@@ -76,19 +87,26 @@ sudo apt install \
 #### Complete Build Process
 
 ```bash
-# 1. Build kernel (creates .deb packages)
+# 1. Build kernel (automatically uses Docker if available)
 ./scripts/build-kernel.sh rk3568_sz3568
 
-# 2. Build rootfs (installs kernel .debs automatically)
+# 2. Build rootfs (automatically uses Docker if available)
 ./scripts/build-debian-rootfs.sh
 
-# 3. Assemble bootable image (uses existing U-Boot on board - safe!)
+# 3. Assemble bootable image (needs sudo for loop devices)
 sudo ./scripts/assemble-debian-image.sh rk3568_sz3568
 
 # 4. Flash to SD card
 sudo dd if=output/rk3568-debian-*.img of=/dev/sdX bs=4M status=progress conv=fsync
 # Or use the compressed .xz file with balenaEtcher
 ```
+
+**How Docker works:**
+- Scripts auto-detect if Docker is available
+- First run builds Docker image (one-time, ~2 min)
+- Subsequent runs reuse the image (fast!)
+- If no Docker, scripts run on host (needs dependencies)
+- All build artifacts saved to host filesystem
 
 **Total build time:**
 - Kernel build: ~10-15 minutes (first time)
