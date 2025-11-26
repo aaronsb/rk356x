@@ -434,6 +434,15 @@ clean_artifacts() {
         cleaned=true
     fi
 
+    # Clean Docker image (forces rebuild with latest code)
+    if command -v docker &>/dev/null; then
+        if docker image inspect rk3568-debian-builder:latest &>/dev/null 2>&1; then
+            info "Removing Docker build image (will rebuild with latest code)..."
+            docker rmi rk3568-debian-builder:latest >/dev/null 2>&1 || true
+            cleaned=true
+        fi
+    fi
+
     if [ "$cleaned" = true ]; then
         log "All build artifacts removed"
     else
@@ -618,7 +627,7 @@ show_banner() {
 ╔═══════════════════════════════════════════════════════════════╗
 ║                                                               ║
 ║     Debian Build System for Rockchip RK3568                   ║
-║     Kernel 6.6 LTS + Ubuntu 24.04 + XFCE Desktop             ║
+║     Kernel 6.6 LTS + Ubuntu 24.04 + XFCE Desktop              ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
 EOF
