@@ -88,3 +88,7 @@ tpl/
 
 # Downloaded tools
 tools/
+kernel-6.6/
+linux-*.deb
+linux-*.changes
+linux-*.buildinfo
