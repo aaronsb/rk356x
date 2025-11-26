@@ -174,6 +174,7 @@ customize_rootfs() {
     log "Customizing rootfs with chroot..."
 
     # Create customization script
+    # Note: Use unquoted EOF to allow $PROFILE expansion, but setup-emmc uses quoted HEREDOC to prevent its expansion
     cat << EOF | maybe_sudo tee "${ROOTFS_WORK}/tmp/customize.sh" > /dev/null
 #!/bin/bash
 set -e
@@ -342,9 +343,119 @@ useradd -m -s /bin/bash -G sudo,video,audio,dialout rock
 echo "rock:rock" | chpasswd
 echo "root:root" | chpasswd
 
-# Install eMMC provisioning script
-mkdir -p /usr/local/bin
-cat > /usr/local/bin/setup-emmc << 'EMMC_SCRIPT'
+# NOTE: eMMC provisioning script is installed separately after chroot
+
+# Enable services
+if [ "$PROFILE" = "full" ]; then
+    systemctl enable NetworkManager
+    systemctl enable lightdm
+else
+    systemctl enable systemd-networkd
+    systemctl enable systemd-resolved
+
+    # Configure ethernet for DHCP (systemd-networkd)
+    mkdir -p /etc/systemd/network
+    cat > /etc/systemd/network/20-wired.network << 'NETCONF'
+[Match]
+Name=eth* en*
+
+[Network]
+DHCP=yes
+DNSSEC=no
+
+[DHCPv4]
+UseDNS=yes
+NETCONF
+fi
+systemctl enable ssh
+
+# Create first-boot Python bytecode compilation service
+cat > /etc/systemd/system/py3compile-first-boot.service << 'FIRSTBOOT_SERVICE'
+[Unit]
+Description=Compile Python bytecode on first boot
+After=multi-user.target
+ConditionPathExists=!/var/lib/py3compile-first-boot.done
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/echo "First boot: Compiling Python bytecode (this may take a few minutes)..."
+ExecStart=/usr/bin/python3 -m compileall -q /usr
+ExecStartPost=/bin/touch /var/lib/py3compile-first-boot.done
+ExecStartPost=/bin/systemctl disable py3compile-first-boot.service
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+FIRSTBOOT_SERVICE
+
+systemctl enable py3compile-first-boot.service
+
+# Remove py3compile diversion so real hardware uses normal py3compile
+dpkg-divert --remove /usr/bin/py3compile
+dpkg-divert --remove /usr/bin/py3clean
+
+# Note: apt cache is NOT cleaned here - it's bind-mounted for reuse across builds
+
+echo "Rootfs customization complete"
+EOF
+
+    maybe_sudo chmod +x "${ROOTFS_WORK}/tmp/customize.sh"
+
+    # Mount proc, sys, dev for chroot
+    maybe_sudo mount -t proc /proc "${ROOTFS_WORK}/proc"
+    maybe_sudo mount -t sysfs /sys "${ROOTFS_WORK}/sys"
+    maybe_sudo mount --bind /dev "${ROOTFS_WORK}/dev"
+    maybe_sudo mount --bind /dev/pts "${ROOTFS_WORK}/dev/pts"
+
+    # Mount apt cache directories if available (for package caching across builds)
+    if [ -n "$APT_CACHE_DIR" ] && [ -d "$APT_CACHE_DIR" ]; then
+        maybe_sudo mkdir -p "${ROOTFS_WORK}/var/cache/apt"
+        maybe_sudo mount --bind "$APT_CACHE_DIR" "${ROOTFS_WORK}/var/cache/apt"
+    fi
+    if [ -n "$APT_LISTS_DIR" ] && [ -d "$APT_LISTS_DIR" ]; then
+        maybe_sudo mkdir -p "${ROOTFS_WORK}/var/lib/apt/lists"
+        maybe_sudo mount --bind "$APT_LISTS_DIR" "${ROOTFS_WORK}/var/lib/apt/lists"
+    fi
+
+    # Run customization
+    if [ "$QUIET_MODE" = "true" ]; then
+        echo -e "${YELLOW}▸${NC} Installing packages in chroot (systemd, NetworkManager, XFCE, etc)"
+        maybe_sudo chroot "${ROOTFS_WORK}" /bin/bash /tmp/customize.sh > /dev/null 2>&1 || {
+            maybe_sudo umount -lf "${ROOTFS_WORK}/var/cache/apt" || true
+            maybe_sudo umount -lf "${ROOTFS_WORK}/var/lib/apt/lists" || true
+            maybe_sudo umount -lf "${ROOTFS_WORK}/proc" || true
+            maybe_sudo umount -lf "${ROOTFS_WORK}/sys" || true
+            maybe_sudo umount -lf "${ROOTFS_WORK}/dev/pts" || true
+            maybe_sudo umount -lf "${ROOTFS_WORK}/dev" || true
+            error "Customization failed"
+        }
+    else
+        maybe_sudo chroot "${ROOTFS_WORK}" /bin/bash /tmp/customize.sh || {
+            maybe_sudo umount -lf "${ROOTFS_WORK}/var/cache/apt" || true
+            maybe_sudo umount -lf "${ROOTFS_WORK}/var/lib/apt/lists" || true
+            maybe_sudo umount -lf "${ROOTFS_WORK}/proc" || true
+            maybe_sudo umount -lf "${ROOTFS_WORK}/sys" || true
+            maybe_sudo umount -lf "${ROOTFS_WORK}/dev/pts" || true
+            maybe_sudo umount -lf "${ROOTFS_WORK}/dev" || true
+            error "Customization failed"
+        }
+    fi
+
+    # Cleanup mounts
+    maybe_sudo umount -lf "${ROOTFS_WORK}/var/cache/apt" || true
+    maybe_sudo umount -lf "${ROOTFS_WORK}/var/lib/apt/lists" || true
+    maybe_sudo umount -lf "${ROOTFS_WORK}/proc" || true
+    maybe_sudo umount -lf "${ROOTFS_WORK}/sys" || true
+    maybe_sudo umount -lf "${ROOTFS_WORK}/dev/pts" || true
+    maybe_sudo umount -lf "${ROOTFS_WORK}/dev" || true
+}
+
+install_setup_emmc() {
+    log "Installing eMMC provisioning script..."
+
+    # Create setup-emmc script directly in rootfs (avoids HEREDOC nesting issues)
+    maybe_sudo tee "${ROOTFS_WORK}/usr/local/bin/setup-emmc" > /dev/null << 'EMMC_SCRIPT'
 #!/bin/bash
 set -e
 
@@ -469,112 +580,8 @@ log "  3. Power on - board will boot from eMMC"
 echo ""
 EMMC_SCRIPT
 
-chmod +x /usr/local/bin/setup-emmc
-
-# Enable services
-if [ "$PROFILE" = "full" ]; then
-    systemctl enable NetworkManager
-    systemctl enable lightdm
-else
-    systemctl enable systemd-networkd
-    systemctl enable systemd-resolved
-
-    # Configure ethernet for DHCP (systemd-networkd)
-    mkdir -p /etc/systemd/network
-    cat > /etc/systemd/network/20-wired.network << 'NETCONF'
-[Match]
-Name=eth* en*
-
-[Network]
-DHCP=yes
-DNSSEC=no
-
-[DHCPv4]
-UseDNS=yes
-NETCONF
-fi
-systemctl enable ssh
-
-# Create first-boot Python bytecode compilation service
-cat > /etc/systemd/system/py3compile-first-boot.service << 'FIRSTBOOT_SERVICE'
-[Unit]
-Description=Compile Python bytecode on first boot
-After=multi-user.target
-ConditionPathExists=!/var/lib/py3compile-first-boot.done
-
-[Service]
-Type=oneshot
-ExecStartPre=/bin/echo "First boot: Compiling Python bytecode (this may take a few minutes)..."
-ExecStart=/usr/bin/python3 -m compileall -q /usr
-ExecStartPost=/bin/touch /var/lib/py3compile-first-boot.done
-ExecStartPost=/bin/systemctl disable py3compile-first-boot.service
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-FIRSTBOOT_SERVICE
-
-systemctl enable py3compile-first-boot.service
-
-# Remove py3compile diversion so real hardware uses normal py3compile
-dpkg-divert --remove /usr/bin/py3compile
-dpkg-divert --remove /usr/bin/py3clean
-
-# Note: apt cache is NOT cleaned here - it's bind-mounted for reuse across builds
-
-echo "Rootfs customization complete"
-EOF
-
-    maybe_sudo chmod +x "${ROOTFS_WORK}/tmp/customize.sh"
-
-    # Mount proc, sys, dev for chroot
-    maybe_sudo mount -t proc /proc "${ROOTFS_WORK}/proc"
-    maybe_sudo mount -t sysfs /sys "${ROOTFS_WORK}/sys"
-    maybe_sudo mount --bind /dev "${ROOTFS_WORK}/dev"
-    maybe_sudo mount --bind /dev/pts "${ROOTFS_WORK}/dev/pts"
-
-    # Mount apt cache directories if available (for package caching across builds)
-    if [ -n "$APT_CACHE_DIR" ] && [ -d "$APT_CACHE_DIR" ]; then
-        maybe_sudo mkdir -p "${ROOTFS_WORK}/var/cache/apt"
-        maybe_sudo mount --bind "$APT_CACHE_DIR" "${ROOTFS_WORK}/var/cache/apt"
-    fi
-    if [ -n "$APT_LISTS_DIR" ] && [ -d "$APT_LISTS_DIR" ]; then
-        maybe_sudo mkdir -p "${ROOTFS_WORK}/var/lib/apt/lists"
-        maybe_sudo mount --bind "$APT_LISTS_DIR" "${ROOTFS_WORK}/var/lib/apt/lists"
-    fi
-
-    # Run customization
-    if [ "$QUIET_MODE" = "true" ]; then
-        echo -e "${YELLOW}▸${NC} Installing packages in chroot (systemd, NetworkManager, XFCE, etc)"
-        maybe_sudo chroot "${ROOTFS_WORK}" /bin/bash /tmp/customize.sh > /dev/null 2>&1 || {
-            maybe_sudo umount -lf "${ROOTFS_WORK}/var/cache/apt" || true
-            maybe_sudo umount -lf "${ROOTFS_WORK}/var/lib/apt/lists" || true
-            maybe_sudo umount -lf "${ROOTFS_WORK}/proc" || true
-            maybe_sudo umount -lf "${ROOTFS_WORK}/sys" || true
-            maybe_sudo umount -lf "${ROOTFS_WORK}/dev/pts" || true
-            maybe_sudo umount -lf "${ROOTFS_WORK}/dev" || true
-            error "Customization failed"
-        }
-    else
-        maybe_sudo chroot "${ROOTFS_WORK}" /bin/bash /tmp/customize.sh || {
-            maybe_sudo umount -lf "${ROOTFS_WORK}/var/cache/apt" || true
-            maybe_sudo umount -lf "${ROOTFS_WORK}/var/lib/apt/lists" || true
-            maybe_sudo umount -lf "${ROOTFS_WORK}/proc" || true
-            maybe_sudo umount -lf "${ROOTFS_WORK}/sys" || true
-            maybe_sudo umount -lf "${ROOTFS_WORK}/dev/pts" || true
-            maybe_sudo umount -lf "${ROOTFS_WORK}/dev" || true
-            error "Customization failed"
-        }
-    fi
-
-    # Cleanup mounts
-    maybe_sudo umount -lf "${ROOTFS_WORK}/var/cache/apt" || true
-    maybe_sudo umount -lf "${ROOTFS_WORK}/var/lib/apt/lists" || true
-    maybe_sudo umount -lf "${ROOTFS_WORK}/proc" || true
-    maybe_sudo umount -lf "${ROOTFS_WORK}/sys" || true
-    maybe_sudo umount -lf "${ROOTFS_WORK}/dev/pts" || true
-    maybe_sudo umount -lf "${ROOTFS_WORK}/dev" || true
+    maybe_sudo chmod +x "${ROOTFS_WORK}/usr/local/bin/setup-emmc"
+    log "✓ eMMC provisioning script installed"
 }
 
 install_mali_gpu() {
@@ -698,6 +705,7 @@ main() {
     extract_rootfs
     setup_qemu
     customize_rootfs
+    install_setup_emmc
     install_mali_gpu
     create_image
     cleanup
