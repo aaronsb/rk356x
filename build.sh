@@ -64,13 +64,17 @@ usage() {
     echo
     echo -e "${BOLD}EXAMPLES:${NC}"
     echo "    # Auto mode: build what's needed, flash to SD card"
-    echo "    sudo $0 --auto --device /dev/sdX rk3568_sz3568"
+    echo "    $0 --auto --device /dev/sdX rk3568_sz3568"
+    echo "    (Will prompt for sudo password once)"
     echo
     echo "    # Interactive build (recommended for first time)"
     echo "    $0 rk3568_sz3568"
     echo
     echo "    # Clean rebuild (delete all artifacts first)"
     echo "    $0 --clean rk3568_sz3568"
+    echo
+    echo "    # Quiet mode (less verbose output)"
+    echo "    $0 --quiet --auto --device /dev/sdX rk3568_sz3568"
     echo
     echo "    # Non-interactive full rebuild"
     echo "    $0 --non-interactive rk3568_sz3568"
@@ -83,7 +87,7 @@ usage() {
     echo
     echo -e "${BOLD}REQUIREMENTS:${NC}"
     echo "    - Docker (recommended) OR build dependencies installed"
-    echo "    - sudo access (for image assembly with loop devices)"
+    echo "    - sudo access (script will prompt for password when needed)"
     echo
     echo -e "${BOLD}BUILD TIME:${NC}"
     echo "    First build:  ~30-45 minutes"
@@ -398,6 +402,43 @@ ask_yes_no() {
 }
 
 # ============================================================================
+# Sudo Session Management
+# ============================================================================
+
+setup_sudo() {
+    # Check if we'll need sudo for this run
+    local needs_sudo=false
+
+    if [ "$IMAGE_ONLY" = true ] || [ "$AUTO_MODE" = true ] || [ -z "$KERNEL_ONLY" ] && [ -z "$ROOTFS_ONLY" ]; then
+        needs_sudo=true
+    fi
+
+    if [ "$needs_sudo" = false ]; then
+        return 0
+    fi
+
+    info "Establishing sudo session (password required once)..."
+
+    # Establish sudo session
+    if ! sudo -v; then
+        error "Failed to establish sudo session"
+    fi
+
+    # Keep sudo session alive with proper cleanup
+    cleanup_sudo() {
+        if [[ -n "$SUDO_REFRESH_PID" ]]; then
+            kill $SUDO_REFRESH_PID 2>/dev/null || true
+        fi
+    }
+    trap cleanup_sudo EXIT
+
+    ( while true; do sudo -v; sleep 60; done; ) &
+    SUDO_REFRESH_PID=$!
+
+    log "Sudo session established (will stay alive for entire build)"
+}
+
+# ============================================================================
 # Clean Function
 # ============================================================================
 
@@ -708,6 +749,9 @@ show_summary() {
 
 main() {
     show_banner
+
+    # Set up sudo session keepalive (if needed)
+    setup_sudo
 
     # Clean artifacts if requested
     if [ "$CLEAN_MODE" = true ]; then
