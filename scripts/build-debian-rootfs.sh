@@ -13,16 +13,23 @@ if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
         # Ensure QEMU binfmt is registered on host (required for ARM64 chroot)
         if [ ! -f /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then
             echo "==> Setting up QEMU binfmt_misc for ARM64 emulation..."
-            if ! command -v qemu-aarch64-static &>/dev/null; then
-                echo "⚠ qemu-user-static not installed on host"
-                echo "  Install with: sudo apt install qemu-user-static binfmt-support"
-                exit 1
+            # Register QEMU for ARM64 using Docker (no host qemu-user-static needed)
+            if ! docker run --rm --privileged multiarch/qemu-user-static --reset -p yes >/dev/null 2>&1; then
+                echo "⚠ Failed to register QEMU binfmt via Docker"
+                echo "  Trying direct registration (requires qemu-user-static on host)..."
+                if command -v qemu-aarch64-static &>/dev/null; then
+                    sudo update-binfmts --enable qemu-aarch64 2>/dev/null || {
+                        echo "✗ QEMU binfmt registration failed"
+                        echo "  Install with: sudo apt install qemu-user-static binfmt-support"
+                        exit 1
+                    }
+                else
+                    echo "✗ qemu-user-static not installed on host"
+                    echo "  Install with: sudo apt install qemu-user-static binfmt-support"
+                    exit 1
+                fi
             fi
-            # Register QEMU for ARM64 (requires docker with --privileged or direct registration)
-            docker run --rm --privileged multiarch/qemu-user-static --reset -p yes >/dev/null 2>&1 || {
-                echo "⚠ Failed to register QEMU binfmt. Trying direct registration..."
-                sudo update-binfmts --enable qemu-aarch64 2>/dev/null || true
-            }
+            echo "✓ QEMU binfmt registered for ARM64 emulation"
         fi
 
         # Build Docker image if needed
