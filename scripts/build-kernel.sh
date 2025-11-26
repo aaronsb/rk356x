@@ -72,7 +72,7 @@ error() { echo -e "${RED}✗${NC} $*" >&2; exit 1; }
 # Redirect output in quiet mode
 quiet_run() {
     if [ "$QUIET_MODE" = "true" ]; then
-        "$@" > /dev/null 2>&1
+        "$@" 2>&1 | grep -v "^find:" | grep -v "^scripts/config:" || true
     else
         "$@"
     fi
