@@ -59,6 +59,15 @@ log() { echo -e "${GREEN}==>${NC} $*"; }
 warn() { echo -e "${YELLOW}⚠${NC} $*"; }
 error() { echo -e "${RED}✗${NC} $*" >&2; exit 1; }
 
+# Use sudo only when not in Docker (Docker runs with sufficient privileges)
+maybe_sudo() {
+    if [ -f /.dockerenv ] || [ -n "$CONTAINER" ]; then
+        "$@"
+    else
+        command sudo "$@"
+    fi
+}
+
 # Redirect output in quiet mode
 quiet_run() {
     if [ "$QUIET_MODE" = "true" ]; then
@@ -112,19 +121,19 @@ extract_rootfs() {
 
     if [ "$QUIET_MODE" = "true" ]; then
         echo -e "${YELLOW}▸${NC} Extracting Ubuntu base rootfs"
-        sudo tar -xzf "${ROOTFS_DIR}/${UBUNTU_BASE}" -C "${ROOTFS_WORK}" 2>&1 | grep -v "tar:"
+        maybe_sudo tar -xzf "${ROOTFS_DIR}/${UBUNTU_BASE}" -C "${ROOTFS_WORK}" 2>&1 | grep -v "tar:"
     else
-        sudo tar -xzf "${ROOTFS_DIR}/${UBUNTU_BASE}" -C "${ROOTFS_WORK}"
+        maybe_sudo tar -xzf "${ROOTFS_DIR}/${UBUNTU_BASE}" -C "${ROOTFS_WORK}"
     fi
 }
 
 setup_qemu() {
     log "Setting up QEMU emulation..."
 
-    sudo cp /usr/bin/qemu-aarch64-static "${ROOTFS_WORK}/usr/bin/"
+    maybe_sudo cp /usr/bin/qemu-aarch64-static "${ROOTFS_WORK}/usr/bin/"
 
     # DNS resolution
-    sudo cp /etc/resolv.conf "${ROOTFS_WORK}/etc/resolv.conf"
+    maybe_sudo cp /etc/resolv.conf "${ROOTFS_WORK}/etc/resolv.conf"
 }
 
 customize_rootfs() {
@@ -146,7 +155,7 @@ apt-get install -y \
     systemd systemd-sysv \
     network-manager \
     openssh-server \
-    sudo \
+    maybe_sudo \
     ca-certificates \
     locales \
     tzdata
@@ -219,39 +228,39 @@ rm -rf /var/lib/apt/lists/*
 echo "Rootfs customization complete"
 EOF
 
-    sudo chmod +x "${ROOTFS_WORK}/tmp/customize.sh"
+    maybe_sudo chmod +x "${ROOTFS_WORK}/tmp/customize.sh"
 
     # Mount proc, sys, dev for chroot
-    sudo mount -t proc /proc "${ROOTFS_WORK}/proc"
-    sudo mount -t sysfs /sys "${ROOTFS_WORK}/sys"
-    sudo mount --bind /dev "${ROOTFS_WORK}/dev"
-    sudo mount --bind /dev/pts "${ROOTFS_WORK}/dev/pts"
+    maybe_sudo mount -t proc /proc "${ROOTFS_WORK}/proc"
+    maybe_sudo mount -t sysfs /sys "${ROOTFS_WORK}/sys"
+    maybe_sudo mount --bind /dev "${ROOTFS_WORK}/dev"
+    maybe_sudo mount --bind /dev/pts "${ROOTFS_WORK}/dev/pts"
 
     # Run customization
     if [ "$QUIET_MODE" = "true" ]; then
         echo -e "${YELLOW}▸${NC} Installing packages in chroot (systemd, NetworkManager, XFCE, etc)"
-        sudo chroot "${ROOTFS_WORK}" /tmp/customize.sh > /dev/null 2>&1 || {
-            sudo umount -lf "${ROOTFS_WORK}/proc" || true
-            sudo umount -lf "${ROOTFS_WORK}/sys" || true
-            sudo umount -lf "${ROOTFS_WORK}/dev/pts" || true
-            sudo umount -lf "${ROOTFS_WORK}/dev" || true
+        maybe_sudo chroot "${ROOTFS_WORK}" /tmp/customize.sh > /dev/null 2>&1 || {
+            maybe_sudo umount -lf "${ROOTFS_WORK}/proc" || true
+            maybe_sudo umount -lf "${ROOTFS_WORK}/sys" || true
+            maybe_sudo umount -lf "${ROOTFS_WORK}/dev/pts" || true
+            maybe_sudo umount -lf "${ROOTFS_WORK}/dev" || true
             error "Customization failed"
         }
     else
-        sudo chroot "${ROOTFS_WORK}" /tmp/customize.sh || {
-            sudo umount -lf "${ROOTFS_WORK}/proc" || true
-            sudo umount -lf "${ROOTFS_WORK}/sys" || true
-            sudo umount -lf "${ROOTFS_WORK}/dev/pts" || true
-            sudo umount -lf "${ROOTFS_WORK}/dev" || true
+        maybe_sudo chroot "${ROOTFS_WORK}" /tmp/customize.sh || {
+            maybe_sudo umount -lf "${ROOTFS_WORK}/proc" || true
+            maybe_sudo umount -lf "${ROOTFS_WORK}/sys" || true
+            maybe_sudo umount -lf "${ROOTFS_WORK}/dev/pts" || true
+            maybe_sudo umount -lf "${ROOTFS_WORK}/dev" || true
             error "Customization failed"
         }
     fi
 
     # Cleanup mounts
-    sudo umount -lf "${ROOTFS_WORK}/proc" || true
-    sudo umount -lf "${ROOTFS_WORK}/sys" || true
-    sudo umount -lf "${ROOTFS_WORK}/dev/pts" || true
-    sudo umount -lf "${ROOTFS_WORK}/dev" || true
+    maybe_sudo umount -lf "${ROOTFS_WORK}/proc" || true
+    maybe_sudo umount -lf "${ROOTFS_WORK}/sys" || true
+    maybe_sudo umount -lf "${ROOTFS_WORK}/dev/pts" || true
+    maybe_sudo umount -lf "${ROOTFS_WORK}/dev" || true
 }
 
 install_mali_gpu() {
@@ -274,19 +283,19 @@ install_mali_gpu() {
 
     # Install to rootfs via chroot
     log "Installing Mali GPU package to rootfs..."
-    sudo cp "${ROOTFS_DIR}/mali-pkg/${mali_pkg}" "${ROOTFS_WORK}/tmp/"
-    sudo cp /usr/bin/qemu-aarch64-static "${ROOTFS_WORK}/usr/bin/" || true
+    maybe_sudo cp "${ROOTFS_DIR}/mali-pkg/${mali_pkg}" "${ROOTFS_WORK}/tmp/"
+    maybe_sudo cp /usr/bin/qemu-aarch64-static "${ROOTFS_WORK}/usr/bin/" || true
 
     if [ "$QUIET_MODE" = "true" ]; then
         echo -e "${YELLOW}▸${NC} Installing Mali Bifrost G52 driver"
-        sudo chroot "${ROOTFS_WORK}" /bin/bash > /dev/null 2>&1 << 'CHROOT_EOF'
+        maybe_sudo chroot "${ROOTFS_WORK}" /bin/bash > /dev/null 2>&1 << 'CHROOT_EOF'
 set -e
 cd /tmp
 dpkg -i *.deb || apt-get install -f -y
 rm -f /tmp/*.deb
 CHROOT_EOF
     else
-        sudo chroot "${ROOTFS_WORK}" /bin/bash << 'CHROOT_EOF'
+        maybe_sudo chroot "${ROOTFS_WORK}" /bin/bash << 'CHROOT_EOF'
 set -e
 cd /tmp
 echo "Installing Mali GPU driver..."
@@ -314,29 +323,29 @@ create_image() {
     # Create ext4 filesystem
     if [ "$QUIET_MODE" = "true" ]; then
         echo -e "${YELLOW}▸${NC} Creating ext4 filesystem"
-        sudo mkfs.ext4 -L "rootfs" "${ROOTFS_IMAGE}" > /dev/null 2>&1
+        maybe_sudo mkfs.ext4 -L "rootfs" "${ROOTFS_IMAGE}" > /dev/null 2>&1
     else
-        sudo mkfs.ext4 -L "rootfs" "${ROOTFS_IMAGE}"
+        maybe_sudo mkfs.ext4 -L "rootfs" "${ROOTFS_IMAGE}"
     fi
 
     # Mount and copy
     local mount_point="${ROOTFS_DIR}/mnt"
     mkdir -p "${mount_point}"
-    sudo mount "${ROOTFS_IMAGE}" "${mount_point}"
+    maybe_sudo mount "${ROOTFS_IMAGE}" "${mount_point}"
 
     [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Copying rootfs to image"
-    sudo cp -a "${ROOTFS_WORK}"/* "${mount_point}/"
+    maybe_sudo cp -a "${ROOTFS_WORK}"/* "${mount_point}/"
 
-    sudo umount "${mount_point}"
+    maybe_sudo umount "${mount_point}"
 
     # Optimize
     if [ "$QUIET_MODE" = "true" ]; then
         echo -e "${YELLOW}▸${NC} Optimizing filesystem"
-        sudo e2fsck -fy "${ROOTFS_IMAGE}" > /dev/null 2>&1 || true
-        sudo resize2fs -M "${ROOTFS_IMAGE}" > /dev/null 2>&1
+        maybe_sudo e2fsck -fy "${ROOTFS_IMAGE}" > /dev/null 2>&1 || true
+        maybe_sudo resize2fs -M "${ROOTFS_IMAGE}" > /dev/null 2>&1
     else
-        sudo e2fsck -fy "${ROOTFS_IMAGE}" || true
-        sudo resize2fs -M "${ROOTFS_IMAGE}"
+        maybe_sudo e2fsck -fy "${ROOTFS_IMAGE}" || true
+        maybe_sudo resize2fs -M "${ROOTFS_IMAGE}"
     fi
 
     log "Rootfs image created: ${ROOTFS_IMAGE}"
@@ -346,13 +355,13 @@ cleanup() {
     log "Cleaning up..."
 
     # Ensure everything is unmounted
-    sudo umount -lf "${ROOTFS_WORK}/proc" 2>/dev/null || true
-    sudo umount -lf "${ROOTFS_WORK}/sys" 2>/dev/null || true
-    sudo umount -lf "${ROOTFS_WORK}/dev/pts" 2>/dev/null || true
-    sudo umount -lf "${ROOTFS_WORK}/dev" 2>/dev/null || true
+    maybe_sudo umount -lf "${ROOTFS_WORK}/proc" 2>/dev/null || true
+    maybe_sudo umount -lf "${ROOTFS_WORK}/sys" 2>/dev/null || true
+    maybe_sudo umount -lf "${ROOTFS_WORK}/dev/pts" 2>/dev/null || true
+    maybe_sudo umount -lf "${ROOTFS_WORK}/dev" 2>/dev/null || true
 
     if [ "${KEEP_WORK:-0}" != "1" ]; then
-        sudo rm -rf "${ROOTFS_WORK}"
+        maybe_sudo rm -rf "${ROOTFS_WORK}"
         log "Work directory removed (set KEEP_WORK=1 to preserve)"
     fi
 }
