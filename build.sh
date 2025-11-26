@@ -454,6 +454,15 @@ clean_artifacts() {
         cleaned=true
     fi
 
+    # Fix output directory ownership if it exists (might be root-owned)
+    if [ -d "${PROJECT_ROOT}/output" ]; then
+        if [ "$(stat -c '%U' "${PROJECT_ROOT}/output" 2>/dev/null)" = "root" ]; then
+            info "Fixing output directory ownership..."
+            sudo chown -R "$(id -u):$(id -g)" "${PROJECT_ROOT}/output"
+            cleaned=true
+        fi
+    fi
+
     # Clean kernel source
     if [ -d "${PROJECT_ROOT}/kernel-6.6" ]; then
         info "Removing kernel source directory..."
@@ -481,6 +490,15 @@ clean_artifacts() {
         info "Removing rootfs image..."
         rm -f "${PROJECT_ROOT}/rootfs/debian-rootfs.img"
         cleaned=true
+    fi
+
+    # Fix rootfs directory ownership if it exists (might be root-owned)
+    if [ -d "${PROJECT_ROOT}/rootfs" ]; then
+        if [ "$(stat -c '%U' "${PROJECT_ROOT}/rootfs" 2>/dev/null)" = "root" ]; then
+            info "Fixing rootfs directory ownership..."
+            sudo chown -R "$(id -u):$(id -g)" "${PROJECT_ROOT}/rootfs"
+            cleaned=true
+        fi
     fi
 
     # Clean final images
