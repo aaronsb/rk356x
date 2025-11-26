@@ -122,6 +122,20 @@ copy_custom_files() {
         log "Copying device trees..."
         cp -v "${PROJECT_ROOT}"/external/custom/board/rk3568/dts/rockchip/*.dts \
             "${KERNEL_DIR}/arch/arm64/boot/dts/rockchip/"
+
+        # Add custom DTBs to Makefile so they get compiled
+        log "Adding custom DTBs to Makefile..."
+        for dts in "${PROJECT_ROOT}"/external/custom/board/rk3568/dts/rockchip/*.dts; do
+            if [ -f "$dts" ]; then
+                local dtb_name=$(basename "$dts" .dts)
+                # Check if already in Makefile
+                if ! grep -q "${dtb_name}.dtb" "${KERNEL_DIR}/arch/arm64/boot/dts/rockchip/Makefile"; then
+                    echo "dtb-\$(CONFIG_ARCH_ROCKCHIP) += ${dtb_name}.dtb" >> \
+                        "${KERNEL_DIR}/arch/arm64/boot/dts/rockchip/Makefile"
+                    log "Added ${dtb_name}.dtb to Makefile"
+                fi
+            fi
+        done
     else
         warn "No custom DTBs found in external/custom/board/rk3568/dts/rockchip"
     fi
