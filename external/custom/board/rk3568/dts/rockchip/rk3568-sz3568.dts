@@ -730,16 +730,59 @@
 		     &i2s1m0_sdo0>;
 };
 
-/* PWM15 for LCD backlight - commented out for now */
-/*
+/* PWM15 for LCD backlight */
 &pwm15 {
 	status = "okay";
 	pinctrl-names = "active";
 	pinctrl-0 = <&pwm15m1_pins>;
 };
-*/
 
-/* TODO: Add LVDS configuration once we verify correct labels in base dtsi */
+/* LVDS for panel connection */
+&video_phy0 {
+	status = "okay";
+};
+
+/* Configure LVDS in GRF (not vop_grf!) */
+&grf {
+	lvds: lvds {
+		compatible = "rockchip,rk3568-lvds";
+		phys = <&video_phy0>;
+		phy-names = "phy";
+		status = "okay";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				lvds_in_vp1: endpoint@1 {
+					reg = <1>;
+					remote-endpoint = <&vp1_out_lvds>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+
+				lvds_out_panel: endpoint {
+					remote-endpoint = <&panel_in_lvds>;
+				};
+			};
+		};
+	};
+};
+
+/* VOP needs to route vp1 to LVDS */
+&vp1 {
+	vp1_out_lvds: endpoint@ROCKCHIP_VOP2_EP_LVDS0 {
+		reg = <ROCKCHIP_VOP2_EP_LVDS0>;
+		remote-endpoint = <&lvds_in_vp1>;
+	};
+};
 
 &pinctrl {
 	pmic {
