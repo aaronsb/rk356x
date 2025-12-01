@@ -158,6 +158,11 @@ copy_custom_files() {
         log "Copying device trees..."
         cp -v "${PROJECT_ROOT}"/external/custom/board/rk3568/dts/rockchip/*.dts \
             "${KERNEL_DIR}/arch/arm64/boot/dts/rockchip/"
+        # Also copy dtsi files if they exist
+        if ls "${PROJECT_ROOT}"/external/custom/board/rk3568/dts/rockchip/*.dtsi >/dev/null 2>&1; then
+            cp -v "${PROJECT_ROOT}"/external/custom/board/rk3568/dts/rockchip/*.dtsi \
+                "${KERNEL_DIR}/arch/arm64/boot/dts/rockchip/"
+        fi
 
         # Add custom DTBs to Makefile so they get compiled
         log "Adding custom DTBs to Makefile..."
