@@ -278,9 +278,9 @@ flash_bootloader() {
 
     step "Flashing bootloader to image"
 
-    local uboot_dir="${OUTPUT_DIR}/u-boot"
+    local uboot_dir="${OUTPUT_DIR}/uboot"
 
-    if [ ! -f "${uboot_dir}/idbloader.img" ] || [ ! -f "${uboot_dir}/u-boot.itb" ]; then
+    if [ ! -f "${uboot_dir}/idbloader.img" ] || [ ! -f "${uboot_dir}/uboot.img" ] || [ ! -f "${uboot_dir}/trust.img" ]; then
         error "U-Boot binaries not found. Run: ./scripts/build-uboot.sh"
     fi
 
@@ -292,9 +292,13 @@ flash_bootloader() {
     dd if="${uboot_dir}/idbloader.img" of="${IMAGE_FILE}" \
         seek=64 conv=notrunc,fsync status=none
 
-    log "Writing u-boot.itb at sector 16384..."
-    dd if="${uboot_dir}/u-boot.itb" of="${IMAGE_FILE}" \
+    log "Writing uboot.img at sector 16384..."
+    dd if="${uboot_dir}/uboot.img" of="${IMAGE_FILE}" \
         seek=16384 conv=notrunc,fsync status=none
+
+    log "Writing trust.img at sector 24576..."
+    dd if="${uboot_dir}/trust.img" of="${IMAGE_FILE}" \
+        seek=24576 conv=notrunc,fsync status=none
 
     log "✓ Bootloader flashed"
 }
@@ -359,17 +363,11 @@ install_boot_files() {
     ROOT_PARTUUID=$(blkid -s PARTUUID -o value "${ROOT_PART}")
     log "Root PARTUUID: ${ROOT_PARTUUID}"
 
-    # Create extlinux config for U-Boot
-    log "Creating extlinux boot configuration..."
-    mkdir -p "${WORK_DIR}/boot/extlinux"
-    cat > "${WORK_DIR}/boot/extlinux/extlinux.conf" << EOF
-label Debian RK3568
-    kernel /Image
-    fdt /dtbs/rockchip/${DTB_NAME}.dtb
-    append root=PARTUUID=${ROOT_PARTUUID} rootwait rw console=ttyS2,1500000 earlycon=uart8250,mmio32,0xfe660000
-EOF
+    # NOTE: We skip extlinux.conf because this U-Boot checks extlinux BEFORE boot scripts,
+    # and extlinux cannot clear the existing bootargs that interfere with root device selection.
+    # Boot.scr gives us full control to clear bootargs before setting new ones.
 
-    # Create boot.scr for U-Boot (preferred over extlinux.conf)
+    # Create boot.scr for U-Boot
     # This ensures bootargs is set correctly without interference from saved env vars
     log "Creating boot script (boot.scr)..."
     cat > "${WORK_DIR}/boot/boot.cmd" << EOF
@@ -378,8 +376,8 @@ EOF
 
 echo "=== Debian RK3568 Boot Script ==="
 
-# Clear any existing bootargs to prevent interference
-env delete bootargs
+# Clear any existing bootargs by setting to empty (compatible with all U-Boot versions)
+setenv bootargs
 
 # Set bootargs explicitly
 setenv bootargs "root=PARTUUID=${ROOT_PARTUUID} rootwait rw console=ttyS2,1500000 earlycon=uart8250,mmio32,0xfe660000"
@@ -393,7 +391,8 @@ booti \${kernel_addr_r} - \${fdt_addr_r}
 EOF
 
     # Compile boot.cmd to boot.scr.uimg
-    mkimage -C none -A arm64 -T script -d "${WORK_DIR}/boot/boot.cmd" "${WORK_DIR}/boot/boot.scr.uimg"
+    # Use -A arm (32-bit) not arm64 because U-Boot runs in 32-bit mode even on 64-bit SoC
+    mkimage -C none -A arm -T script -d "${WORK_DIR}/boot/boot.cmd" "${WORK_DIR}/boot/boot.scr.uimg"
 
     sync
     umount "${WORK_DIR}/boot"

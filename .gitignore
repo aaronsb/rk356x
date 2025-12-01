@@ -8,6 +8,9 @@ buildroot/
 !buildroot/.gitkeep
 buildroot-*.tar.gz
 
+# U-Boot source (cloned during build)
+u-boot/
+
 # Temporary files
 *.tmp
 *.log

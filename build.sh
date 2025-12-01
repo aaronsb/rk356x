@@ -42,6 +42,7 @@ usage() {
     echo -e "${BOLD}OPTIONS:${NC}"
     echo "    --auto                Auto mode: build only what's missing, flash to SD card"
     echo "    --clean               Delete all build artifacts before starting"
+    echo "    --clean-logs          Delete only build logs (keep artifacts)"
     echo "    --quiet               Quiet mode: hide verbose build output, show spinner"
     echo "    --non-interactive     Skip all prompts, rebuild everything"
     echo "    --kernel-only         Build kernel only"
@@ -73,6 +74,12 @@ usage() {
     echo "    # Clean rebuild (delete all artifacts first)"
     echo "    $0 --clean rk3568_sz3568"
     echo
+    echo "    # Clean only logs (keep artifacts)"
+    echo "    $0 --clean-logs"
+    echo
+    echo "    # Clean logs before building"
+    echo "    $0 --clean-logs rk3568_sz3568"
+    echo
     echo "    # Quiet mode (less verbose output)"
     echo "    $0 --quiet --auto --device /dev/sdX rk3568_sz3568"
     echo
@@ -99,6 +106,7 @@ usage() {
 BOARD=""
 AUTO_MODE=false
 CLEAN_MODE=false
+CLEAN_LOGS_MODE=false
 QUIET_MODE=false
 export QUIET_MODE
 NON_INTERACTIVE=false
@@ -117,6 +125,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --clean)
             CLEAN_MODE=true
+            shift
+            ;;
+        --clean-logs)
+            CLEAN_LOGS_MODE=true
             shift
             ;;
         --quiet)
@@ -371,10 +383,41 @@ flash_to_sd() {
         sudo dd if="$image_file" of="$device" bs=4M status=progress conv=fsync
     fi
 
+    # Flash U-Boot if built with --with-uboot
+    if [ "$WITH_UBOOT" = true ]; then
+        echo
+        info "Flashing custom U-Boot to $device..."
+
+        # Check if U-Boot artifacts exist
+        if [ -f "${OUTPUT_DIR}/uboot/idbloader.img" ] && \
+           [ -f "${OUTPUT_DIR}/uboot/uboot.img" ] && \
+           [ -f "${OUTPUT_DIR}/uboot/trust.img" ]; then
+
+            # Flash U-Boot components to bootloader area
+            info "Writing idbloader.img (SPL + DDR init)..."
+            sudo dd if="${OUTPUT_DIR}/uboot/idbloader.img" of="$device" seek=64 bs=512 conv=fsync status=none
+
+            info "Writing uboot.img (U-Boot proper)..."
+            sudo dd if="${OUTPUT_DIR}/uboot/uboot.img" of="$device" seek=16384 bs=512 conv=fsync status=none
+
+            info "Writing trust.img (ATF)..."
+            sudo dd if="${OUTPUT_DIR}/uboot/trust.img" of="$device" seek=24576 bs=512 conv=fsync status=none
+
+            log "✓ Custom U-Boot flashed to $device"
+        else
+            warn "U-Boot artifacts not found in ${OUTPUT_DIR}/uboot/"
+            warn "Skipping U-Boot flash - using existing bootloader on device"
+        fi
+    fi
+
     # Sync
     sudo sync
 
     log "Flash complete! $device is ready to boot."
+    if [ "$WITH_UBOOT" = true ]; then
+        echo
+        info "Custom U-Boot has been flashed - bootcmd will run distro_bootcmd automatically"
+    fi
 }
 
 # ============================================================================
@@ -442,6 +485,29 @@ setup_sudo() {
 # ============================================================================
 # Clean Function
 # ============================================================================
+
+clean_logs() {
+    header "Cleaning Build Logs"
+
+    local cleaned=false
+    local log_count=0
+
+    # Clean build logs
+    if ls "${PROJECT_ROOT}/output"/build-*.log &>/dev/null; then
+        log_count=$(ls -1 "${PROJECT_ROOT}/output"/build-*.log 2>/dev/null | wc -l)
+        info "Removing ${log_count} log file(s)..."
+        rm -f "${PROJECT_ROOT}/output"/build-*.log
+        cleaned=true
+    fi
+
+    if [ "$cleaned" = true ]; then
+        log "Removed ${log_count} build log(s)"
+    else
+        info "No log files found to clean"
+    fi
+
+    echo
+}
 
 clean_artifacts() {
     header "Cleaning Build Artifacts"
@@ -573,7 +639,11 @@ stage_kernel() {
     fi
 
     echo -e "${CYAN}${ICON_BUILD} Building kernel...${NC}"
-    "${PROJECT_ROOT}/scripts/build-kernel.sh" "${BOARD}"
+
+    # Log to phase-specific file
+    local phase_log="${BUILD_LOG_PREFIX}-kernel.log"
+    info "Kernel log: ${phase_log}"
+    "${PROJECT_ROOT}/scripts/build-kernel.sh" "${BOARD}" 2>&1 | tee "${phase_log}"
 
     log "Kernel build complete!"
 }
@@ -630,9 +700,87 @@ stage_rootfs() {
     fi
 
     echo -e "${CYAN}${ICON_BUILD} Building rootfs...${NC}"
-    "${PROJECT_ROOT}/scripts/build-debian-rootfs.sh"
+
+    # Log to phase-specific file
+    local phase_log="${BUILD_LOG_PREFIX}-rootfs.log"
+    info "Rootfs log: ${phase_log}"
+    "${PROJECT_ROOT}/scripts/build-debian-rootfs.sh" 2>&1 | tee "${phase_log}"
 
     log "Rootfs build complete!"
+}
+
+check_uboot_artifacts() {
+    if [ -f "${OUTPUT_DIR}/uboot/idbloader.img" ] && \
+       [ -f "${OUTPUT_DIR}/uboot/uboot.img" ] && \
+       [ -f "${OUTPUT_DIR}/uboot/trust.img" ]; then
+        local size=$(du -h "${OUTPUT_DIR}/uboot/uboot.img" | cut -f1)
+        local date=$(stat -c %y "${OUTPUT_DIR}/uboot/uboot.img" | cut -d' ' -f1,2 | cut -d'.' -f1)
+
+        echo "FOUND"
+        echo "  U-Boot: uboot.img ($size)"
+        echo "  Date:   $date"
+        echo "  Files:  idbloader.img, uboot.img, trust.img"
+        return 0
+    else
+        echo "NOT_FOUND"
+        return 1
+    fi
+}
+
+stage_uboot() {
+    header "Stage 2.5: U-Boot Build (Optional)"
+
+    info "Board:  ${BOARD}"
+    info "Output: ${OUTPUT_DIR}/uboot/"
+    echo
+
+    # Only build U-Boot if --with-uboot flag is set
+    if [ "$WITH_UBOOT" = false ]; then
+        info "U-Boot build skipped (use --with-uboot to build custom U-Boot)"
+        return 0
+    fi
+
+    local status=$(check_uboot_artifacts)
+
+    if echo "$status" | grep -q "^FOUND$"; then
+        echo -e "${GREEN}${ICON_CHECK} U-Boot artifacts found:${NC}"
+        echo "$status" | grep -v "FOUND" || true
+        echo
+
+        # Auto mode: skip if artifacts exist
+        if [ "$AUTO_MODE" = true ]; then
+            log "Auto mode: using existing U-Boot artifacts"
+            return 0
+        fi
+
+        local answer=$(ask_yes_no "Rebuild U-Boot?" "n")
+        if [[ ! $answer =~ ^[Yy]$ ]]; then
+            log "Skipping U-Boot build (using existing artifacts)"
+            return 0
+        fi
+    else
+        warn "No U-Boot artifacts found"
+        echo
+        warn "⚠️  CAUTION: Building custom U-Boot!"
+        warn "⚠️  Ensure you have maskrom recovery available!"
+        echo
+
+        if [ "$NON_INTERACTIVE" = false ]; then
+            local answer=$(ask_yes_no "Build custom U-Boot now?" "y")
+            if [[ ! $answer =~ ^[Yy]$ ]]; then
+                error "U-Boot is required when --with-uboot is specified"
+            fi
+        fi
+    fi
+
+    echo -e "${CYAN}${ICON_BUILD} Building U-Boot...${NC}"
+
+    # Log to phase-specific file
+    local phase_log="${BUILD_LOG_PREFIX}-uboot.log"
+    info "U-Boot log: ${phase_log}"
+    "${PROJECT_ROOT}/scripts/build-uboot.sh" "${BOARD}" 2>&1 | tee "${phase_log}"
+
+    log "U-Boot build complete!"
 }
 
 stage_image() {
@@ -692,10 +840,14 @@ stage_image() {
 
     echo -e "${CYAN}${ICON_BUILD} Assembling image...${NC}"
 
+    # Log to phase-specific file
+    local phase_log="${BUILD_LOG_PREFIX}-image.log"
+    info "Image assembly log: ${phase_log}"
+
     if [ "$WITH_UBOOT" = true ]; then
-        sudo "${PROJECT_ROOT}/scripts/assemble-debian-image.sh" --with-uboot "${BOARD}"
+        sudo "${PROJECT_ROOT}/scripts/assemble-debian-image.sh" --with-uboot "${BOARD}" 2>&1 | tee "${phase_log}"
     else
-        sudo "${PROJECT_ROOT}/scripts/assemble-debian-image.sh" "${BOARD}"
+        sudo "${PROJECT_ROOT}/scripts/assemble-debian-image.sh" "${BOARD}" 2>&1 | tee "${phase_log}"
     fi
 
     log "Image assembly complete!"
@@ -880,17 +1032,39 @@ show_summary() {
 }
 
 main() {
-    # Set up build logging
-    BUILD_LOG="${OUTPUT_DIR}/build-$(date +%Y%m%d-%H%M%S).log"
+    # Set up build logging with timestamp for this build session
+    BUILD_TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+    BUILD_LOG_PREFIX="${OUTPUT_DIR}/build-${BUILD_TIMESTAMP}"
+    BUILD_LOG_FULL="${BUILD_LOG_PREFIX}-full.log"
+
     mkdir -p "${OUTPUT_DIR}"
 
-    # Use tee to write to both stdout and log file
-    exec > >(tee -a "${BUILD_LOG}")
+    # Export log prefix for subscripts to use
+    export BUILD_LOG_PREFIX
+
+    # Use tee to write to both stdout and combined log file
+    exec > >(tee -a "${BUILD_LOG_FULL}")
     exec 2>&1
 
     show_banner
-    info "Build log: ${BUILD_LOG}"
+    info "Build session: ${BUILD_TIMESTAMP}"
+    info "Full log: ${BUILD_LOG_FULL}"
+    info "Phase logs will be created in: ${OUTPUT_DIR}/build-${BUILD_TIMESTAMP}-*.log"
     echo
+
+    # Handle clean-logs-only mode
+    if [ "$CLEAN_LOGS_MODE" = true ] && \
+       [ "$CLEAN_MODE" = false ] && \
+       [ "$AUTO_MODE" = false ] && \
+       [ "$KERNEL_ONLY" = false ] && \
+       [ "$ROOTFS_ONLY" = false ] && \
+       [ "$IMAGE_ONLY" = false ] && \
+       [ "$NON_INTERACTIVE" = false ]; then
+        # Just clean logs and exit
+        clean_logs
+        log "Log cleanup complete!"
+        exit 0
+    fi
 
     # Handle clean-only mode (no build flags specified)
     if [ "$CLEAN_MODE" = true ] && \
@@ -908,6 +1082,11 @@ main() {
 
     # Set up sudo session keepalive (if needed)
     setup_sudo
+
+    # Clean logs if requested (before building)
+    if [ "$CLEAN_LOGS_MODE" = true ]; then
+        clean_logs
+    fi
 
     # Clean artifacts if requested (before building)
     if [ "$CLEAN_MODE" = true ]; then
@@ -939,6 +1118,9 @@ main() {
     echo
 
     stage_rootfs
+    echo
+
+    stage_uboot
     echo
 
     stage_image
