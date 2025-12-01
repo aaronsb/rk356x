@@ -179,7 +179,7 @@
 		regulator-min-microvolt = <3300000>;
 		regulator-max-microvolt = <3300000>;
 		enable-active-high;
-		gpio = <&gpio3 RK_PB2 GPIO_ACTIVE_HIGH>;
+		gpio = <&gpio3 RK_PC5 GPIO_ACTIVE_HIGH>;
 		vin-supply = <&vcc3v3_sys>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&lcd_enable_h>;
@@ -779,7 +779,7 @@
 
 	lcd {
 		lcd_enable_h: lcd-enable-h {
-			rockchip,pins = <3 RK_PB2 RK_FUNC_GPIO &pcfg_pull_none>;
+			rockchip,pins = <3 RK_PC5 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
