@@ -278,7 +278,8 @@ else
         xserver-xorg-core \
         xserver-xorg-input-libinput \
         xserver-xorg-video-fbdev \
-        xinit \
+        lightdm \
+        lightdm-gtk-greeter \
         dbus-x11
 fi
 
@@ -344,9 +345,12 @@ else
 fi
 
 # Create user
-useradd -m -s /bin/bash -G sudo,video,audio,dialout rock
+useradd -m -s /bin/bash -G sudo,video,audio,dialout,render rock
 echo "rock:rock" | chpasswd
 echo "root:root" | chpasswd
+
+# Add lightdm user to render/video groups for GPU access
+usermod -a -G render,video lightdm || true
 
 # NOTE: eMMC provisioning script is installed separately after chroot
 
@@ -357,6 +361,7 @@ if [ "\$PROFILE" = "full" ]; then
 else
     systemctl enable systemd-networkd
     systemctl enable systemd-resolved
+    systemctl enable lightdm
 
     # Configure ethernet for DHCP (systemd-networkd)
     mkdir -p /etc/systemd/network
@@ -589,6 +594,24 @@ EMMC_SCRIPT
     log "✓ eMMC provisioning script installed"
 }
 
+apply_rootfs_overlay() {
+    local overlay_dir="${PROJECT_ROOT}/config/rootfs-overlay"
+
+    if [ ! -d "$overlay_dir" ]; then
+        log "No rootfs overlay found, skipping"
+        return
+    fi
+
+    log "Applying rootfs overlay from ${overlay_dir}..."
+
+    # Copy overlay files to rootfs (preserving permissions and structure)
+    maybe_sudo cp -a "${overlay_dir}"/* "${ROOTFS_WORK}/" || {
+        warn "Failed to copy some overlay files"
+    }
+
+    log "✓ Rootfs overlay applied"
+}
+
 install_mali_gpu() {
     log "Installing Mali GPU drivers..."
 
@@ -659,16 +682,13 @@ create_image() {
     local mount_point="${ROOTFS_DIR}/mnt"
     mkdir -p "${mount_point}"
 
-    # Explicitly use loop device
-    local loop_device=$(maybe_sudo losetup -f)
-    maybe_sudo losetup "${loop_device}" "${ROOTFS_IMAGE}"
-    maybe_sudo mount "${loop_device}" "${mount_point}"
+    # Mount using -o loop (handles loop device automatically)
+    maybe_sudo mount -o loop "${ROOTFS_IMAGE}" "${mount_point}"
 
     [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Copying rootfs to image"
     maybe_sudo cp -a "${ROOTFS_WORK}"/* "${mount_point}/"
 
     maybe_sudo umount "${mount_point}"
-    maybe_sudo losetup -d "${loop_device}"
 
     # Optimize
     if [ "$QUIET_MODE" = "true" ]; then
@@ -711,6 +731,7 @@ main() {
     setup_qemu
     customize_rootfs
     install_setup_emmc
+    apply_rootfs_overlay
     install_mali_gpu
     create_image
     cleanup
@@ -722,7 +743,7 @@ main() {
     log ""
     if [ "$PROFILE" = "minimal" ]; then
         log "Minimal profile notes:"
-        log "  - No display manager (lightdm): Login and run 'startx' to start XFCE"
+        log "  - LightDM auto-starts XFCE desktop on boot"
         log "  - No GStreamer plugins: Install if you need video playback"
         log "  - To build full profile: PROFILE=full ./scripts/build-debian-rootfs.sh"
         log ""
