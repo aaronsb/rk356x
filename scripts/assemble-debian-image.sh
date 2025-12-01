@@ -122,7 +122,7 @@ check_root() {
 }
 
 check_deps() {
-    local deps=(parted losetup mkfs.ext4 e2fsck resize2fs xz)
+    local deps=(parted losetup mkfs.ext4 e2fsck resize2fs xz mkimage)
     local missing=()
 
     for dep in "${deps[@]}"; do
@@ -132,7 +132,7 @@ check_deps() {
     done
 
     if [ ${#missing[@]} -gt 0 ]; then
-        error "Missing dependencies: ${missing[*]}\nInstall with: sudo apt install parted e2fsprogs xz-utils"
+        error "Missing dependencies: ${missing[*]}\n\nInstall with:\n  Ubuntu/Debian: sudo apt install parted e2fsprogs xz-utils u-boot-tools\n  Arch Linux:    yay -S uboot-tools (from AUR)"
     fi
 }
 
@@ -263,6 +263,8 @@ partition_image() {
     parted -s "${IMAGE_FILE}" mklabel gpt
     parted -s "${IMAGE_FILE}" mkpart primary ext4 ${boot_start}s ${boot_end}s
     parted -s "${IMAGE_FILE}" mkpart primary ext4 ${rootfs_start}s 100%
+    # Set legacy BIOS bootable flag for U-Boot to detect it
+    parted -s "${IMAGE_FILE}" set 1 legacy_boot on
     parted -s "${IMAGE_FILE}" set 1 boot on
 
     log "✓ Partitions created"
@@ -352,6 +354,11 @@ install_boot_files() {
     cp "${KERNEL_DIR}/arch/arm64/boot/dts/rockchip/${DTB_NAME}.dtb" \
         "${WORK_DIR}/boot/"
 
+    # Get PARTUUID of root partition for extlinux.conf
+    log "Getting root partition PARTUUID..."
+    ROOT_PARTUUID=$(blkid -s PARTUUID -o value "${ROOT_PART}")
+    log "Root PARTUUID: ${ROOT_PARTUUID}"
+
     # Create extlinux config for U-Boot
     log "Creating extlinux boot configuration..."
     mkdir -p "${WORK_DIR}/boot/extlinux"
@@ -359,8 +366,34 @@ install_boot_files() {
 label Debian RK3568
     kernel /Image
     fdt /dtbs/rockchip/${DTB_NAME}.dtb
-    append root=LABEL=ROOTFS rootwait rw console=ttyS2,1500000 earlycon=uart8250,mmio32,0xfe660000
+    append root=PARTUUID=${ROOT_PARTUUID} rootwait rw console=ttyS2,1500000 earlycon=uart8250,mmio32,0xfe660000
 EOF
+
+    # Create boot.scr for U-Boot (preferred over extlinux.conf)
+    # This ensures bootargs is set correctly without interference from saved env vars
+    log "Creating boot script (boot.scr)..."
+    cat > "${WORK_DIR}/boot/boot.cmd" << EOF
+# U-Boot boot script for Debian RK3568
+# This script ensures clean bootargs without interference from saved environment
+
+echo "=== Debian RK3568 Boot Script ==="
+
+# Clear any existing bootargs to prevent interference
+env delete bootargs
+
+# Set bootargs explicitly
+setenv bootargs "root=PARTUUID=${ROOT_PARTUUID} rootwait rw console=ttyS2,1500000 earlycon=uart8250,mmio32,0xfe660000"
+
+# Load kernel and DTB from current boot device
+load \${devtype} \${devnum}:\${distro_bootpart} \${kernel_addr_r} /Image
+load \${devtype} \${devnum}:\${distro_bootpart} \${fdt_addr_r} /dtbs/rockchip/${DTB_NAME}.dtb
+
+# Boot the kernel
+booti \${kernel_addr_r} - \${fdt_addr_r}
+EOF
+
+    # Compile boot.cmd to boot.scr.uimg
+    mkimage -C none -A arm64 -T script -d "${WORK_DIR}/boot/boot.cmd" "${WORK_DIR}/boot/boot.scr.uimg"
 
     sync
     umount "${WORK_DIR}/boot"

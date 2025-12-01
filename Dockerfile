@@ -40,7 +40,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     less \
     rsync \
     file \
-    ca-certificates
+    ca-certificates \
+    u-boot-tools
 
 # Set working directory
 WORKDIR /work
