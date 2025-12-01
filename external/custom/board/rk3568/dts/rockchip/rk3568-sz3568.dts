@@ -276,29 +276,11 @@
 		};
 	};
 
-	/* Display subsystem - binds VOP, HDMI, and LVDS together */
+	/* Display subsystem - binds VOP and HDMI together
+	 * Note: Minimal configuration for now, routes handled by base dtsi */
 	display_subsystem: display-subsystem {
 		compatible = "rockchip,display-subsystem";
-		ports = <&vop_out>;
 		status = "okay";
-
-		route {
-			route-hdmi {
-				status = "okay";
-				logo,uboot = "logo.bmp";
-				logo,kernel = "logo_kernel.bmp";
-				logo,mode = "center";
-				connect = <&vp0_out_hdmi>;
-			};
-
-			route-lvds {
-				status = "okay";
-				logo,uboot = "logo.bmp";
-				logo,kernel = "logo_kernel.bmp";
-				logo,mode = "center";
-				connect = <&vp1_out_lvds>;
-			};
-		};
 	};
 
 	/* Reserved memory for DRM logo and LUT */
@@ -765,58 +747,16 @@
 		     &i2s1m0_sdo0>;
 };
 
-/* PWM15 for LCD backlight */
+/* PWM15 for LCD backlight - commented out for now */
+/*
 &pwm15 {
 	status = "okay";
 	pinctrl-names = "active";
 	pinctrl-0 = <&pwm15m1_pins>;
 };
+*/
 
-/* LVDS for panel connection */
-&video_phy0 {
-	status = "okay";
-};
-
-&vop_grf {
-	lvds {
-		compatible = "rockchip,rk3568-lvds";
-		phys = <&video_phy0>;
-		phy-names = "phy";
-		status = "okay";
-
-		ports {
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			port@0 {
-				reg = <0>;
-				#address-cells = <1>;
-				#size-cells = <0>;
-
-				lvds_in_vp1: endpoint@1 {
-					reg = <1>;
-					remote-endpoint = <&vp1_out_lvds>;
-				};
-			};
-
-			port@1 {
-				reg = <1>;
-
-				lvds_out_panel: endpoint {
-					remote-endpoint = <&panel_in_lvds>;
-				};
-			};
-		};
-	};
-};
-
-/* VOP needs to route vp1 to LVDS */
-&vp1 {
-	vp1_out_lvds: endpoint@ROCKCHIP_VOP2_EP_LVDS0 {
-		reg = <ROCKCHIP_VOP2_EP_LVDS0>;
-		remote-endpoint = <&lvds_in_vp1>;
-	};
-};
+/* TODO: Add LVDS configuration once we verify correct labels in base dtsi */
 
 &pinctrl {
 	pmic {
