@@ -742,45 +742,18 @@
 	status = "okay";
 };
 
-/* Configure LVDS in GRF (not vop_grf!) */
-&grf {
-	lvds: lvds {
-		compatible = "rockchip,rk3568-lvds";
-		phys = <&video_phy0>;
-		phy-names = "phy";
-		status = "okay";
+/* Use existing LVDS infrastructure from base dtsi */
+&lvds1 {
+	status = "okay";
 
-		ports {
-			#address-cells = <1>;
-			#size-cells = <0>;
+	ports {
+		port@1 {
+			reg = <1>;
 
-			port@0 {
-				reg = <0>;
-				#address-cells = <1>;
-				#size-cells = <0>;
-
-				lvds_in_vp1: endpoint@1 {
-					reg = <1>;
-					remote-endpoint = <&vp1_out_lvds>;
-				};
-			};
-
-			port@1 {
-				reg = <1>;
-
-				lvds_out_panel: endpoint {
-					remote-endpoint = <&panel_in_lvds>;
-				};
+			lvds1_out_panel: endpoint {
+				remote-endpoint = <&panel_in_lvds>;
 			};
 		};
-	};
-};
-
-/* VOP needs to route vp1 to LVDS */
-&vp1 {
-	vp1_out_lvds: endpoint@ROCKCHIP_VOP2_EP_LVDS0 {
-		reg = <ROCKCHIP_VOP2_EP_LVDS0>;
-		remote-endpoint = <&lvds_in_vp1>;
 	};
 };
 
