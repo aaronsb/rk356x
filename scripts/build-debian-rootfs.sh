@@ -230,8 +230,8 @@ if [ "\$PROFILE" = "full" ]; then
     apt-get install -y \$APT_OPTS network-manager
 else
     # Minimal profile: systemd-networkd (no GNOME dependencies)
+    # Note: systemd-networkd is included in the systemd package (line 220)
     apt-get install -y \$APT_OPTS \
-        systemd-networkd \
         systemd-resolved \
         iproute2 \
         iputils-ping \
