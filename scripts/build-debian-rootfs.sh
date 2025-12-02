@@ -191,8 +191,14 @@ export DEB_PYTHON_INSTALL_LAYOUT=deb_system
 apt-get update
 
 # Add Debian GPG keys for repository verification
-# Install debian-archive-keyring which contains all Debian signing keys
-apt-get install -y debian-archive-keyring
+# Download debian-archive-keyring directly from Debian (Ubuntu 22.04's version is too old)
+# Ubuntu 22.04 was released in 2022, but Debian bookworm was released in 2023
+# so Ubuntu's keyring doesn't have the bookworm signing keys
+echo "Installing Debian archive keyring from Debian repository..."
+apt-get install -y wget
+wget -q http://deb.debian.org/debian/pool/main/d/debian-archive-keyring/debian-archive-keyring_2023.4_all.deb -O /tmp/debian-keyring.deb
+dpkg -i /tmp/debian-keyring.deb
+rm /tmp/debian-keyring.deb
 
 # Add Debian bookworm repository for chromium (Ubuntu 22.04+ only has snap stub)
 # Use lower priority (100) so Ubuntu packages are preferred by default
