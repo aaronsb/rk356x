@@ -231,8 +231,13 @@ if [ "\$PROFILE" = "full" ]; then
 else
     # Minimal profile: systemd-networkd (no GNOME dependencies)
     apt-get install -y \$APT_OPTS \
+        systemd-networkd \
         systemd-resolved \
         iproute2 \
+        iputils-ping \
+        iputils-tracepath \
+        dnsutils \
+        ndisc6 \
         dhcpcd5
 fi
 
@@ -361,6 +366,7 @@ if [ "\$PROFILE" = "full" ]; then
 else
     systemctl enable systemd-networkd
     systemctl enable systemd-resolved
+    systemctl enable set-mac.service
     systemctl enable lightdm
 
     # Configure ethernet for DHCP (systemd-networkd)
@@ -596,20 +602,33 @@ EMMC_SCRIPT
 
 apply_rootfs_overlay() {
     local overlay_dir="${PROJECT_ROOT}/config/rootfs-overlay"
+    local board_overlay_dir="${PROJECT_ROOT}/external/custom/board/rk3568/rootfs-overlay"
 
-    if [ ! -d "$overlay_dir" ]; then
-        log "No rootfs overlay found, skipping"
-        return
+    # Apply common overlay first
+    if [ -d "$overlay_dir" ]; then
+        log "Applying common rootfs overlay from ${overlay_dir}..."
+        maybe_sudo cp -a "${overlay_dir}"/* "${ROOTFS_WORK}/" || {
+            warn "Failed to copy some common overlay files"
+        }
+        log "✓ Common rootfs overlay applied"
+    else
+        log "No common rootfs overlay found, skipping"
     fi
 
-    log "Applying rootfs overlay from ${overlay_dir}..."
+    # Apply board-specific overlay (can override common files)
+    if [ -d "$board_overlay_dir" ]; then
+        log "Applying board-specific rootfs overlay from ${board_overlay_dir}..."
+        maybe_sudo cp -a "${board_overlay_dir}"/* "${ROOTFS_WORK}/" || {
+            warn "Failed to copy some board-specific overlay files"
+        }
 
-    # Copy overlay files to rootfs (preserving permissions and structure)
-    maybe_sudo cp -a "${overlay_dir}"/* "${ROOTFS_WORK}/" || {
-        warn "Failed to copy some overlay files"
-    }
+        # Ensure scripts are executable
+        maybe_sudo chmod +x "${ROOTFS_WORK}/usr/local/bin/set-mac-from-serial" 2>/dev/null || true
 
-    log "✓ Rootfs overlay applied"
+        log "✓ Board-specific rootfs overlay applied (MAC address management)"
+    else
+        warn "No board-specific rootfs overlay found at ${board_overlay_dir}"
+    fi
 }
 
 install_mali_gpu() {
