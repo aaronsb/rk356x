@@ -197,8 +197,11 @@ build_uboot() {
 
     cd "${UBOOT_DIR}"
 
-    # Clean previous build
-    make distclean || true
+    # Clean previous build (handle permission issues from Docker builds)
+    if ! make distclean 2>/dev/null; then
+        warn "Standard clean failed, using git clean to remove root-owned files..."
+        git clean -fdx || warn "Git clean failed, some files may remain"
+    fi
 
     # Configure for RK3568 EVB (mainline defconfig)
     make ${DEFCONFIG}
