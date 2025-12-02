@@ -587,6 +587,28 @@ clean_artifacts() {
             docker rmi -f rk3568-debian-builder:latest || true
             cleaned=true
         fi
+
+        # Check Docker environment health
+        echo
+        info "Checking Docker environment..."
+
+        # Check for orphaned rk3568 containers
+        local orphaned=$(docker ps -a --filter "ancestor=rk3568-debian-builder" --format "{{.ID}}" 2>/dev/null | wc -l)
+        if [ "$orphaned" -gt 0 ]; then
+            warn "Found ${orphaned} orphaned rk3568 container(s)"
+            info "Remove with: docker ps -a | grep rk3568 | awk '{print \$1}' | xargs docker rm -f"
+        fi
+
+        # Check Docker build cache size
+        local cache_size=$(docker system df --format "{{.BuildCache}}" 2>/dev/null | grep -oE '[0-9.]+GB' | head -1)
+        if [ -n "$cache_size" ]; then
+            local cache_num=$(echo "$cache_size" | grep -oE '[0-9.]+')
+            if (( $(echo "$cache_num > 5.0" | bc -l 2>/dev/null || echo 0) )); then
+                warn "Docker build cache is large: ${cache_size}"
+                info "This may cause stale builds. Clear with: docker builder prune -af"
+                info "(Warning: This affects ALL Docker projects, not just rk3568)"
+            fi
+        fi
     fi
 
     if [ "$cleaned" = true ]; then
