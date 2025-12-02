@@ -295,7 +295,10 @@
         };
 
         rgmii_phy1: phy@0 {
-                compatible = "ethernet-phy-ieee802.3-c22";
+                /* MAXIO MAE0621A Gigabit PHY - specify ID to enable proper driver binding
+                 * before MDIO probe (fixes kernel 6.6 chicken-and-egg PHY detection issue)
+                 */
+                compatible = "ethernet-phy-id7b74.4411", "ethernet-phy-ieee802.3-c22";
                 reg = <0x0>;
         };
 	qsgmii_phy1: phy@1 {
