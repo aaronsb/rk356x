@@ -366,8 +366,8 @@ if [ "\$PROFILE" = "full" ]; then
 else
     systemctl enable systemd-networkd
     systemctl enable systemd-resolved
-    systemctl enable set-mac.service
     systemctl enable lightdm
+    # Note: set-mac.service is enabled after overlay application
 
     # Configure ethernet for DHCP (systemd-networkd)
     mkdir -p /etc/systemd/network
@@ -624,6 +624,12 @@ apply_rootfs_overlay() {
 
         # Ensure scripts are executable
         maybe_sudo chmod +x "${ROOTFS_WORK}/usr/local/bin/set-mac-from-serial" 2>/dev/null || true
+
+        # Enable set-mac.service now that the service file exists
+        log "Enabling set-mac.service..."
+        maybe_sudo chroot "${ROOTFS_WORK}" systemctl enable set-mac.service || {
+            warn "Failed to enable set-mac.service"
+        }
 
         log "✓ Board-specific rootfs overlay applied (MAC address management)"
     else
