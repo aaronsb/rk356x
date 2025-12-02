@@ -10,6 +10,7 @@ buildroot-*.tar.gz
 
 # U-Boot source (cloned during build)
 u-boot/
+u-boot-*/
 
 # Temporary files
 *.tmp
@@ -92,7 +93,7 @@ tpl/
 
 # Downloaded tools
 tools/
-kernel-6.6/
+kernel-*/
 linux-*.deb
 linux-*.changes
 linux-*.buildinfo
