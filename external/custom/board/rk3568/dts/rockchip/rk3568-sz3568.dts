@@ -407,3 +407,11 @@
 &vp1 {
         cursor-win-id = <ROCKCHIP_VOP2_CLUSTER1>;
 };*/
+
+/* TODO: Fix NPU power domain issue - currently panics on boot
+ * Error: "failed to get ack on domain 'npu'"
+ * Temporarily disabled to allow boot - needs proper power management config
+ */
+&rknpu {
+	status = "disabled";
+};
