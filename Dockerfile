@@ -38,6 +38,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     # Python for U-Boot FIT image generation
     python3 \
     python-is-python3 \
+    python3-setuptools \
+    python3-wheel \
+    python3-dev \
+    swig \
+    libgnutls28-dev \
+    python3-pyelftools \
     # Utilities
     vim \
     less \

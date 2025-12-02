@@ -141,6 +141,7 @@ build_in_docker() {
     fi
 
     # Run build inside Docker
+    log "Docker will run as user ${USER_ID}:${GROUP_ID}"
     docker run --rm \
         -v "${PROJECT_ROOT}:${PROJECT_ROOT}" \
         -w "${PROJECT_ROOT}" \
@@ -151,6 +152,7 @@ build_in_docker() {
         "${DOCKER_IMAGE}:latest" \
         bash -c "
             set -e
+            echo \"==> Inside Docker: Running as user \$(id -u):\$(id -g) (\$(id -un):\$(id -gn))\"
             cd ${PROJECT_ROOT}
             ${SCRIPT_DIR}/build-uboot.sh --skip-docker ${BOARD}
         "
