@@ -190,12 +190,16 @@ export DEB_PYTHON_INSTALL_LAYOUT=deb_system
 # Update package lists
 apt-get update
 
+# Add Debian GPG keys for repository verification
+# Install debian-archive-keyring which contains all Debian signing keys
+apt-get install -y debian-archive-keyring
+
 # Add Debian bookworm repository for chromium (Ubuntu 24.04 only has snap stub)
 # Use lower priority (100) so Ubuntu packages are preferred by default
 cat > /etc/apt/sources.list.d/debian-chromium.list << 'DEBIAN_SOURCES'
 # Debian bookworm for chromium browser (real .deb package, not snap)
-deb [arch=arm64] http://deb.debian.org/debian bookworm main
-deb [arch=arm64] http://deb.debian.org/debian-security bookworm-security main
+deb [arch=arm64 signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian bookworm main
+deb [arch=arm64 signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian-security bookworm-security main
 DEBIAN_SOURCES
 
 # Set lower priority for Debian repos (Ubuntu packages preferred by default)
@@ -217,7 +221,11 @@ Pin-Priority: 100
 DEBIAN_PREFS
 
 # Update with Debian repos included
-apt-get update
+if ! apt-get update; then
+    echo "ERROR: apt-get update failed after adding Debian repositories"
+    echo "This usually means GPG key verification failed"
+    exit 1
+fi
 
 # Use dpkg-divert to permanently redirect py3compile to our stub
 # This prevents any package from installing the real py3compile
