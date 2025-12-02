@@ -584,7 +584,7 @@ clean_artifacts() {
     if command -v docker &>/dev/null; then
         if docker image inspect rk3568-debian-builder:latest &>/dev/null 2>&1; then
             info "Removing Docker build image (will rebuild with latest code)..."
-            docker rmi rk3568-debian-builder:latest >/dev/null 2>&1 || true
+            docker rmi -f rk3568-debian-builder:latest || true
             cleaned=true
         fi
     fi
