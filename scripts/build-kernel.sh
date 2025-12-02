@@ -254,14 +254,8 @@ configure_kernel() {
         quiet_run make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
     fi
 
-    # Ensure Mali Bifrost is enabled (critical for GPU)
-    [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Configuring Mali Bifrost GPU support"
-    ./scripts/config --enable CONFIG_MALI_BIFROST
-    ./scripts/config --set-str CONFIG_MALI_PLATFORM_NAME "rk"
-    ./scripts/config --enable CONFIG_MALI_BIFROST_DEVFREQ
-
-    # Ensure Panfrost is disabled (conflicts with Mali)
-    ./scripts/config --disable CONFIG_DRM_PANFROST
+    # GPU config is managed via kernel.config fragment
+    # (Don't force Mali or Panfrost here - let the fragment decide)
 
     # Update config with new settings
     [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Finalizing kernel configuration"
