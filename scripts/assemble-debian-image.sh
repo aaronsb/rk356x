@@ -51,8 +51,11 @@ IMAGE_SIZE="6144"          # Total image size in MB (6GB to fit rootfs + desktop
 BOOT_SIZE="256"            # Boot partition size in MB
 IMAGE_NAME="rk3568-debian-$(date +%Y%m%d%H%M)"
 
+# Kernel version (from environment or default to 6.1)
+KERNEL_VERSION="${KERNEL_VERSION:-6.1}"
+
 # Paths
-KERNEL_DIR="${PROJECT_ROOT}/kernel-6.6"
+KERNEL_DIR="${PROJECT_ROOT}/kernel-${KERNEL_VERSION}"
 ROOTFS_DIR="${PROJECT_ROOT}/rootfs"
 OUTPUT_DIR="${PROJECT_ROOT}/output"
 WORK_DIR="${PROJECT_ROOT}/output/image-work"

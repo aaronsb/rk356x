@@ -191,6 +191,9 @@ case "${BOARD}" in
         ;;
 esac
 
+# Configuration
+KERNEL_VERSION="6.1"
+
 # Paths
 KERNEL_DEBS_DIR="${PROJECT_ROOT}/output/kernel-debs"
 ROOTFS_IMAGE="${PROJECT_ROOT}/rootfs/debian-rootfs.img"
@@ -625,7 +628,7 @@ clean_artifacts() {
 # ============================================================================
 
 stage_kernel() {
-    header "Stage 1: Kernel Build (6.6 LTS)"
+    header "Stage 1: Kernel Build (${KERNEL_VERSION} LTS)"
 
     info "Board:  ${BOARD}"
     info "DTB:    ${DTB_NAME}.dtb"
@@ -879,11 +882,11 @@ stage_image() {
     info "Image assembly log: ${phase_log}"
 
     if [ "$WITH_UBOOT" = true ]; then
-        if ! sudo "${PROJECT_ROOT}/scripts/assemble-debian-image.sh" --with-uboot "${BOARD}" 2>&1 | tee "${phase_log}"; then
+        if ! sudo KERNEL_VERSION="${KERNEL_VERSION}" "${PROJECT_ROOT}/scripts/assemble-debian-image.sh" --with-uboot "${BOARD}" 2>&1 | tee "${phase_log}"; then
             error "Image assembly failed! Check log: ${phase_log}"
         fi
     else
-        if ! sudo "${PROJECT_ROOT}/scripts/assemble-debian-image.sh" "${BOARD}" 2>&1 | tee "${phase_log}"; then
+        if ! sudo KERNEL_VERSION="${KERNEL_VERSION}" "${PROJECT_ROOT}/scripts/assemble-debian-image.sh" "${BOARD}" 2>&1 | tee "${phase_log}"; then
             error "Image assembly failed! Check log: ${phase_log}"
         fi
     fi
