@@ -36,8 +36,8 @@ if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
 fi
 
 # Configuration
-KERNEL_VERSION="6.6"
-KERNEL_BRANCH="develop-6.6"
+KERNEL_VERSION="6.1"
+KERNEL_BRANCH="develop-6.1"
 KERNEL_REPO="https://github.com/rockchip-linux/kernel.git"
 KERNEL_DIR="${PROJECT_ROOT}/kernel-${KERNEL_VERSION}"
 
