@@ -956,7 +956,7 @@ show_banner() {
 ╔═══════════════════════════════════════════════════════════════╗
 ║                                                               ║
 ║     Debian Build System for Rockchip RK3568                   ║
-║     Kernel 6.6 LTS + Ubuntu 24.04 + XFCE Desktop              ║
+║     Kernel 6.1 LTS + Debian 12 + XFCE Desktop                 ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
 EOF
