@@ -656,7 +656,10 @@ stage_kernel() {
     # Log to phase-specific file
     local phase_log="${BUILD_LOG_PREFIX}-kernel.log"
     info "Kernel log: ${phase_log}"
-    "${PROJECT_ROOT}/scripts/build-kernel.sh" "${BOARD}" 2>&1 | tee "${phase_log}"
+
+    if ! "${PROJECT_ROOT}/scripts/build-kernel.sh" "${BOARD}" 2>&1 | tee "${phase_log}"; then
+        error "Kernel build failed! Check log: ${phase_log}"
+    fi
 
     log "Kernel build complete!"
 }
@@ -717,7 +720,10 @@ stage_rootfs() {
     # Log to phase-specific file
     local phase_log="${BUILD_LOG_PREFIX}-rootfs.log"
     info "Rootfs log: ${phase_log}"
-    "${PROJECT_ROOT}/scripts/build-debian-rootfs.sh" 2>&1 | tee "${phase_log}"
+
+    if ! "${PROJECT_ROOT}/scripts/build-debian-rootfs.sh" 2>&1 | tee "${phase_log}"; then
+        error "Rootfs build failed! Check log: ${phase_log}"
+    fi
 
     log "Rootfs build complete!"
 }
@@ -791,7 +797,10 @@ stage_uboot() {
     # Log to phase-specific file
     local phase_log="${BUILD_LOG_PREFIX}-uboot.log"
     info "U-Boot log: ${phase_log}"
-    "${PROJECT_ROOT}/scripts/build-uboot.sh" "${BOARD}" 2>&1 | tee "${phase_log}"
+
+    if ! "${PROJECT_ROOT}/scripts/build-uboot.sh" "${BOARD}" 2>&1 | tee "${phase_log}"; then
+        error "U-Boot build failed! Check log: ${phase_log}"
+    fi
 
     log "U-Boot build complete!"
 }
@@ -858,9 +867,13 @@ stage_image() {
     info "Image assembly log: ${phase_log}"
 
     if [ "$WITH_UBOOT" = true ]; then
-        sudo "${PROJECT_ROOT}/scripts/assemble-debian-image.sh" --with-uboot "${BOARD}" 2>&1 | tee "${phase_log}"
+        if ! sudo "${PROJECT_ROOT}/scripts/assemble-debian-image.sh" --with-uboot "${BOARD}" 2>&1 | tee "${phase_log}"; then
+            error "Image assembly failed! Check log: ${phase_log}"
+        fi
     else
-        sudo "${PROJECT_ROOT}/scripts/assemble-debian-image.sh" "${BOARD}" 2>&1 | tee "${phase_log}"
+        if ! sudo "${PROJECT_ROOT}/scripts/assemble-debian-image.sh" "${BOARD}" 2>&1 | tee "${phase_log}"; then
+            error "Image assembly failed! Check log: ${phase_log}"
+        fi
     fi
 
     log "Image assembly complete!"
