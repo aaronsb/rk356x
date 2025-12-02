@@ -411,7 +411,17 @@
 /* TODO: Fix NPU power domain issue - currently panics on boot
  * Error: "failed to get ack on domain 'npu'"
  * Temporarily disabled to allow boot - needs proper power management config
+ *
+ * Root cause: Mainline U-Boot intentionally leaves NPU/GPU power domains
+ * disabled (arch/arm/mach-rockchip/rk3568/rk3568.c excludes them in
+ * qos_priority_init). When kernel tries to power on NPU, it fails.
+ *
+ * The vendor DTSI (rk3568-sz3568.dtsi) enables NPU, so we override here.
  */
 &rknpu {
+	status = "disabled";
+};
+
+&rknpu_mmu {
 	status = "disabled";
 };
