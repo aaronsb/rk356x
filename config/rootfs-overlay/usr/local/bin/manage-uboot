@@ -1,0 +1,324 @@
+#!/bin/bash
+# RK3568 U-Boot Manager (runs ON the board)
+# Flash/erase/backup U-Boot on eMMC
+
+set -e
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+log() { echo -e "${GREEN}==>${NC} $*"; }
+warn() { echo -e "${YELLOW}⚠${NC} $*"; }
+error() { echo -e "${RED}✗${NC} $*" >&2; exit 1; }
+info() { echo -e "${BLUE}ℹ${NC} $*"; }
+
+# Detect if running from SD card or eMMC
+BOOT_DEV=$(findmnt -n -o SOURCE / | sed 's/p[0-9]$//')
+if [[ "$BOOT_DEV" == *"mmcblk1"* ]]; then
+    BOOT_FROM="SD card"
+    EMMC_DEV="/dev/mmcblk0"
+elif [[ "$BOOT_DEV" == *"mmcblk0"* ]]; then
+    BOOT_FROM="eMMC"
+    EMMC_DEV="/dev/mmcblk0"
+else
+    BOOT_FROM="unknown"
+    EMMC_DEV="/dev/mmcblk0"
+fi
+
+show_menu() {
+    clear
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}${BLUE}   RK3568 U-Boot Manager (On-Board)${NC}"
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo
+    info "Currently booted from: ${BOOT_FROM}"
+    info "eMMC device: ${EMMC_DEV}"
+    echo
+    echo "Choose an operation:"
+    echo
+    echo "  1) Backup eMMC U-Boot"
+    echo "  2) Erase eMMC U-Boot (force SD card boot)"
+    echo "  3) Flash custom U-Boot to eMMC (from /boot/uboot/)"
+    echo "  4) Restore U-Boot backup"
+    echo "  5) Show U-Boot info"
+    echo
+    echo "  q) Quit"
+    echo
+}
+
+backup_uboot() {
+    echo -e "${BOLD}Backup eMMC U-Boot${NC}"
+    echo
+
+    # Try to save to SD card if available, otherwise to current filesystem
+    if [ -b "/dev/mmcblk1p2" ]; then
+        # SD card exists, try to mount and save there
+        BACKUP_BASE="/mnt/sd-rootfs-backup"
+        mkdir -p "${BACKUP_BASE}"
+        if ! mountpoint -q "${BACKUP_BASE}"; then
+            mount /dev/mmcblk1p2 "${BACKUP_BASE}" 2>/dev/null || true
+        fi
+        if mountpoint -q "${BACKUP_BASE}"; then
+            BACKUP_DIR="${BACKUP_BASE}/root/uboot-backups/backup-$(date +%Y%m%d-%H%M%S)"
+            log "Saving backup to SD card"
+        else
+            BACKUP_DIR="/root/uboot-backup-$(date +%Y%m%d-%H%M%S)"
+            warn "Could not mount SD card, saving to eMMC /root"
+        fi
+    else
+        BACKUP_DIR="/root/uboot-backup-$(date +%Y%m%d-%H%M%S)"
+        info "No SD card detected, saving to /root"
+    fi
+
+    mkdir -p "${BACKUP_DIR}"
+    log "Backing up to: ${BACKUP_DIR}"
+    echo
+
+    info "Backing up idbloader..."
+    dd if=${EMMC_DEV} of="${BACKUP_DIR}/idbloader.img" skip=64 count=1024 bs=512 status=none
+    log "✓ idbloader ($(du -h "${BACKUP_DIR}/idbloader.img" | cut -f1))"
+
+    info "Backing up uboot..."
+    dd if=${EMMC_DEV} of="${BACKUP_DIR}/uboot.img" skip=16384 count=4096 bs=512 status=none
+    log "✓ uboot ($(du -h "${BACKUP_DIR}/uboot.img" | cut -f1))"
+
+    info "Backing up trust..."
+    dd if=${EMMC_DEV} of="${BACKUP_DIR}/trust.img" skip=24576 count=4096 bs=512 status=none
+    log "✓ trust ($(du -h "${BACKUP_DIR}/trust.img" | cut -f1))"
+
+    echo
+    log "Backup complete: ${BACKUP_DIR}"
+}
+
+erase_uboot() {
+    echo -e "${BOLD}Erase eMMC U-Boot${NC}"
+    echo
+
+    warn "This will ERASE the U-Boot bootloader from eMMC!"
+    warn "Board will boot from SD card on next reboot."
+    echo
+    warn "Make sure you have a bootable SD card!"
+    echo
+    read -p "Type 'yes' to continue: " confirm
+    if [ "$confirm" != "yes" ]; then
+        echo "Aborted."
+        return
+    fi
+
+    echo
+    info "Erasing idbloader (sector 64)..."
+    dd if=/dev/zero of=${EMMC_DEV} seek=64 count=1024 bs=512 conv=fsync status=none
+    log "✓ idbloader erased"
+
+    info "Erasing uboot (sector 16384)..."
+    dd if=/dev/zero of=${EMMC_DEV} seek=16384 count=8192 bs=512 conv=fsync status=none
+    log "✓ uboot erased"
+
+    info "Erasing trust (sector 24576)..."
+    dd if=/dev/zero of=${EMMC_DEV} seek=24576 count=8192 bs=512 conv=fsync status=none
+    log "✓ trust erased"
+
+    echo
+    log "✓ eMMC bootloader erased!"
+    echo
+    info "Insert bootable SD card and reboot to boot from SD."
+}
+
+flash_custom_uboot() {
+    echo -e "${BOLD}Flash Custom U-Boot to eMMC${NC}"
+    echo
+
+    # Mount SD card boot partition if not already mounted
+    SD_BOOT_MOUNT="/mnt/sd-boot-temp"
+    mkdir -p "${SD_BOOT_MOUNT}"
+
+    if [ -b "/dev/mmcblk1p1" ]; then
+        info "Mounting SD card boot partition..."
+        if ! mountpoint -q "${SD_BOOT_MOUNT}"; then
+            mount /dev/mmcblk1p1 "${SD_BOOT_MOUNT}" 2>/dev/null || true
+        fi
+    fi
+
+    # Check for U-Boot images (might be on SD card mount point)
+    UBOOT_SOURCES=(
+        "${SD_BOOT_MOUNT}/uboot"   # SD card boot partition (just mounted)
+        "/boot/uboot"              # If partition mounted at /boot
+        "/media/boot/uboot"        # Common mount point
+        "/mnt/sd/boot/uboot"       # Manual mount of rootfs
+        "/root/uboot"              # Local copy
+    )
+
+    UBOOT_DIR=""
+    for dir in "${UBOOT_SOURCES[@]}"; do
+        if [ -f "${dir}/idbloader.img" ] && [ -f "${dir}/uboot.img" ] && [ -f "${dir}/trust.img" ]; then
+            UBOOT_DIR="$dir"
+            break
+        fi
+    done
+
+    if [ -z "$UBOOT_DIR" ]; then
+        error "U-Boot images not found. Tried: ${UBOOT_SOURCES[*]}"
+    fi
+
+    log "Found U-Boot images in: ${UBOOT_DIR}"
+    echo
+    ls -lh "${UBOOT_DIR}"/*.img
+    echo
+
+    warn "This will flash custom U-Boot to eMMC!"
+    echo
+    read -p "Continue? [y/N] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        return
+    fi
+
+    echo
+    info "Flashing idbloader..."
+    dd if="${UBOOT_DIR}/idbloader.img" of=${EMMC_DEV} seek=64 bs=512 conv=fsync status=none
+    log "✓ idbloader flashed"
+
+    info "Flashing uboot..."
+    dd if="${UBOOT_DIR}/uboot.img" of=${EMMC_DEV} seek=16384 bs=512 conv=fsync status=none
+    log "✓ uboot flashed"
+
+    info "Flashing trust..."
+    dd if="${UBOOT_DIR}/trust.img" of=${EMMC_DEV} seek=24576 bs=512 conv=fsync status=none
+    log "✓ trust flashed"
+
+    echo
+    log "✓ Custom U-Boot flashed to eMMC!"
+
+    # Cleanup: unmount temporary SD boot partition
+    if mountpoint -q "${SD_BOOT_MOUNT}"; then
+        umount "${SD_BOOT_MOUNT}" 2>/dev/null || true
+    fi
+
+    echo
+    info "Reboot to use new U-Boot"
+}
+
+restore_backup() {
+    echo -e "${BOLD}Restore U-Boot Backup${NC}"
+    echo
+
+    if [ ! -d "/root" ] || [ -z "$(ls -A /root/uboot-backup-* 2>/dev/null)" ]; then
+        error "No backups found in /root/uboot-backup-*"
+    fi
+
+    log "Available backups:"
+    echo
+    select BACKUP_DIR in /root/uboot-backup-*; do
+        if [ -n "${BACKUP_DIR}" ]; then
+            break
+        fi
+    done
+
+    if [ ! -f "${BACKUP_DIR}/idbloader.img" ]; then
+        error "Invalid backup"
+    fi
+
+    echo
+    log "Selected: $(basename ${BACKUP_DIR})"
+    ls -lh "${BACKUP_DIR}"
+    echo
+
+    warn "This will restore backup to eMMC!"
+    echo
+    read -p "Continue? [y/N] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        return
+    fi
+
+    echo
+    info "Restoring idbloader..."
+    dd if="${BACKUP_DIR}/idbloader.img" of=${EMMC_DEV} seek=64 bs=512 conv=fsync status=none
+    log "✓ idbloader restored"
+
+    info "Restoring uboot..."
+    dd if="${BACKUP_DIR}/uboot.img" of=${EMMC_DEV} seek=16384 bs=512 conv=fsync status=none
+    log "✓ uboot restored"
+
+    info "Restoring trust..."
+    dd if="${BACKUP_DIR}/trust.img" of=${EMMC_DEV} seek=24576 bs=512 conv=fsync status=none
+    log "✓ trust restored"
+
+    echo
+    log "✓ Backup restored!"
+}
+
+show_info() {
+    echo -e "${BOLD}U-Boot Information${NC}"
+    echo
+
+    log "System boot:"
+    echo "  Booted from: ${BOOT_FROM}"
+    echo "  Root device: $(findmnt -n -o SOURCE /)"
+    echo "  eMMC device: ${EMMC_DEV}"
+    echo
+
+    log "eMMC U-Boot signatures:"
+    echo -n "  idbloader (sector 64):  "
+    if dd if=${EMMC_DEV} skip=64 count=1 bs=512 status=none 2>/dev/null | grep -q "RKNS"; then
+        echo -e "${GREEN}Present (RKNS signature)${NC}"
+    else
+        echo -e "${YELLOW}Not found${NC}"
+    fi
+
+    echo -n "  uboot (sector 16384):   "
+    if dd if=${EMMC_DEV} skip=16384 count=1 bs=512 status=none 2>/dev/null | hexdump -n 16 | grep -q "[1-9a-f]"; then
+        echo -e "${GREEN}Present${NC}"
+    else
+        echo -e "${YELLOW}Empty/Erased${NC}"
+    fi
+
+    echo
+
+    log "Available U-Boot sources:"
+    for dir in /boot/uboot /media/boot/uboot /mnt/sd/boot/uboot /root/uboot; do
+        if [ -d "$dir" ]; then
+            echo "  $dir:"
+            ls -lh "$dir"/*.img 2>/dev/null || echo "    (no images)"
+        fi
+    done
+
+    echo
+
+    log "Backups:"
+    if ls /root/uboot-backup-* &>/dev/null; then
+        ls -ld /root/uboot-backup-*
+    else
+        echo "  (none)"
+    fi
+}
+
+# Check if root
+if [ "$EUID" -ne 0 ]; then
+    error "This script must be run as root. Use: sudo manage-uboot"
+fi
+
+# Main loop
+while true; do
+    show_menu
+    read -p "Select option: " choice
+    echo
+
+    case $choice in
+        1) backup_uboot ;;
+        2) erase_uboot ;;
+        3) flash_custom_uboot ;;
+        4) restore_backup ;;
+        5) show_info ;;
+        q|Q) echo "Goodbye!"; exit 0 ;;
+        *) warn "Invalid option" ;;
+    esac
+
+    echo
+    read -p "Press Enter to continue..."
+done

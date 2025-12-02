@@ -1,244 +1,402 @@
 #!/bin/bash
 set -e
 
-# RK356X Kernel Build Script
-# Builds Linux kernel for specified board
+# Rockchip Kernel Build Script
+# Builds kernel 6.6 with custom DTBs and creates .deb packages
 
-BOARD="${1:-rock-3a}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(dirname "$SCRIPT_DIR")"
-BUILD_DIR="${ROOT_DIR}/build"
-OUTPUT_DIR="${ROOT_DIR}/output/kernel"
-CONFIG_DIR="${ROOT_DIR}/config"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# Colors for output
+# Auto-use Docker if not already in container
+if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
+    if command -v docker &>/dev/null; then
+        # Build Docker image if needed
+        DOCKER_IMAGE="rk3568-debian-builder"
+        if ! docker image inspect "${DOCKER_IMAGE}:latest" &>/dev/null 2>&1; then
+            echo "==> Building Docker image (one-time setup, with apt caching)..."
+            DOCKER_BUILDKIT=1 docker build -t "${DOCKER_IMAGE}:latest" -f "${PROJECT_ROOT}/Dockerfile" "${PROJECT_ROOT}"
+        fi
+
+        # Re-exec this script in Docker
+        # Use SUDO_UID/SUDO_GID if running via sudo, otherwise use current user
+        USER_ID="${SUDO_UID:-$(id -u)}"
+        GROUP_ID="${SUDO_GID:-$(id -g)}"
+
+        echo "==> Running build in Docker container..."
+        exec docker run --rm -it \
+            -v "${PROJECT_ROOT}:/work" \
+            -e CONTAINER=1 \
+            -w /work \
+            -u "${USER_ID}:${GROUP_ID}" \
+            "${DOCKER_IMAGE}:latest" \
+            "/work/scripts/$(basename "$0")" "$@"
+    else
+        echo "⚠ Docker not found, running on host (requires build dependencies installed)"
+    fi
+fi
+
+# Configuration
+KERNEL_VERSION="6.6"
+KERNEL_BRANCH="develop-6.6"
+KERNEL_REPO="https://github.com/rockchip-linux/kernel.git"
+KERNEL_DIR="${PROJECT_ROOT}/kernel-${KERNEL_VERSION}"
+
+BOARD="${1:-rk3568_sz3568}"
+DEFCONFIG="rockchip_linux_defconfig"
+CORES=$(nproc)
+
+# Board-specific DTB
+case "${BOARD}" in
+    rk3568_sz3568)
+        DTB_NAME="rk3568-sz3568"
+        ;;
+    rk3568_custom)
+        DTB_NAME="rk3568-dc-a568"
+        ;;
+    *)
+        echo "Unknown board: ${BOARD}"
+        exit 1
+        ;;
+esac
+
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+log() { echo -e "${GREEN}==>${NC} $*"; }
+warn() { echo -e "${YELLOW}⚠${NC} $*"; }
+error() { echo -e "${RED}✗${NC} $*" >&2; exit 1; }
+
+# Redirect output in quiet mode
+quiet_run() {
+    if [ "$QUIET_MODE" = "true" ]; then
+        "$@" 2>&1 | grep -v "^find:" | grep -v "^scripts/config:" || true
+    else
+        "$@"
+    fi
 }
 
-log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
+check_deps() {
+    # Skip dependency check if running in Docker (dependencies are in Dockerfile)
+    if [ -f /.dockerenv ] || [ -n "$CONTAINER" ]; then
+        log "Running in Docker container (dependencies pre-installed)"
+        return 0
+    fi
 
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
+    log "Checking dependencies..."
 
-# Load board configuration
-if [ -f "${CONFIG_DIR}/boards/${BOARD}.conf" ]; then
-    log_info "Loading configuration for ${BOARD}"
-    source "${CONFIG_DIR}/boards/${BOARD}.conf"
-else
-    log_error "No configuration found for board: ${BOARD}"
-    exit 1
-fi
+    local deps=(git make gcc g++ bison flex libssl-dev libelf-dev bc kmod debhelper)
+    local missing=()
 
-# Set defaults if not in config
-KERNEL_REPO="${KERNEL_REPO:-https://github.com/torvalds/linux.git}"
-KERNEL_BRANCH="${KERNEL_BRANCH:-v6.6}"
-KERNEL_DEFCONFIG="${KERNEL_DEFCONFIG:-defconfig}"
-KERNEL_CONFIG="${KERNEL_CONFIG:-rockchip_linux_defconfig}"
-CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}"
-ARCH="${ARCH:-arm64}"
-DTB_FILE="${DTB_FILE:-rk3568-rock-3a.dtb}"
-
-mkdir -p "${BUILD_DIR}" "${OUTPUT_DIR}"
-
-# Clone or update kernel
-if [ ! -d "${BUILD_DIR}/linux" ]; then
-    log_info "Cloning kernel from ${KERNEL_REPO}"
-    git clone --depth 1 -b "${KERNEL_BRANCH}" "${KERNEL_REPO}" "${BUILD_DIR}/linux"
-else
-    log_info "Kernel already cloned, updating..."
-    cd "${BUILD_DIR}/linux"
-    git fetch origin "${KERNEL_BRANCH}"
-    git checkout "${KERNEL_BRANCH}"
-    git pull
-fi
-
-cd "${BUILD_DIR}/linux"
-
-# Apply patches if they exist
-if [ -d "${CONFIG_DIR}/patches/kernel/${BOARD}" ]; then
-    log_info "Applying board-specific patches"
-    for patch in "${CONFIG_DIR}/patches/kernel/${BOARD}"/*.patch; do
-        if [ -f "$patch" ]; then
-            log_info "Applying $(basename $patch)"
-            git apply "$patch" || log_warn "Failed to apply $patch"
+    for dep in "${deps[@]}"; do
+        if ! dpkg -l 2>/dev/null | grep -q "^ii  $dep "; then
+            missing+=("$dep")
         fi
     done
-fi
 
-# Clean previous build
-log_info "Cleaning previous build"
-make ARCH="${ARCH}" CROSS_COMPILE="${CROSS_COMPILE}" mrproper
+    if [ ${#missing[@]} -gt 0 ]; then
+        warn "Missing dependencies: ${missing[*]}"
+        log "Install with: sudo apt install ${missing[*]}"
+        error "Please install missing dependencies first"
+    fi
 
-# Configure kernel
-log_info "Configuring kernel with ${KERNEL_CONFIG}"
-if [ -f "arch/${ARCH}/configs/${KERNEL_CONFIG}" ]; then
-    make ARCH="${ARCH}" CROSS_COMPILE="${CROSS_COMPILE}" "${KERNEL_CONFIG}"
-else
-    log_warn "${KERNEL_CONFIG} not found, using defconfig"
-    make ARCH="${ARCH}" CROSS_COMPILE="${CROSS_COMPILE}" defconfig
-fi
+    # Check for cross-compiler
+    if ! command -v aarch64-linux-gnu-gcc &>/dev/null; then
+        error "Missing aarch64 cross-compiler\nInstall with: sudo apt install gcc-aarch64-linux-gnu"
+    fi
+}
 
-# Apply custom config fragments
-if [ -f "${CONFIG_DIR}/kernel/${BOARD}.config" ]; then
-    log_info "Applying custom configuration fragment"
-    ./scripts/kconfig/merge_config.sh .config "${CONFIG_DIR}/kernel/${BOARD}.config"
-fi
+clone_kernel() {
+    log "Cloning Rockchip kernel ${KERNEL_VERSION}..."
 
-# Enable common options for RK356X
-log_info "Enabling RK356X specific options"
-./scripts/config --enable CONFIG_ARCH_ROCKCHIP
-./scripts/config --enable CONFIG_ARM64
-./scripts/config --enable CONFIG_ROCKCHIP_RK3568
-./scripts/config --enable CONFIG_ROCKCHIP_IOMMU
-./scripts/config --enable CONFIG_PHY_ROCKCHIP_NANENG_COMBO_PHY
-./scripts/config --enable CONFIG_PHY_ROCKCHIP_SNPS_PCIE3
-./scripts/config --enable CONFIG_DRM_ROCKCHIP
-./scripts/config --enable CONFIG_ROCKCHIP_VOP2
-./scripts/config --enable CONFIG_DRM_PANEL_SIMPLE
-./scripts/config --enable CONFIG_ROCKCHIP_SARADC
-./scripts/config --enable CONFIG_ROCKCHIP_THERMAL
-./scripts/config --enable CONFIG_COMMON_CLK_ROCKCHIP
-./scripts/config --enable CONFIG_PINCTRL_ROCKCHIP
-./scripts/config --enable CONFIG_PWM_ROCKCHIP
-./scripts/config --enable CONFIG_SND_SOC_ROCKCHIP
-./scripts/config --enable CONFIG_CRYPTO_DEV_ROCKCHIP
-./scripts/config --enable CONFIG_VIDEO_ROCKCHIP_RGA
+    if [ ! -d "${KERNEL_DIR}" ]; then
+        git clone --depth=1 --single-branch --branch="${KERNEL_BRANCH}" \
+            "${KERNEL_REPO}" "${KERNEL_DIR}"
+    else
+        log "Kernel already cloned"
+        read -p "Update kernel source? (y/N) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            cd "${KERNEL_DIR}"
+            git fetch origin "${KERNEL_BRANCH}"
+            git reset --hard "origin/${KERNEL_BRANCH}"
+            cd "${PROJECT_ROOT}"
+        fi
+    fi
+}
 
-# Enable Panfrost (Mali GPU)
-./scripts/config --enable CONFIG_DRM_PANFROST
+copy_custom_files() {
+    log "Copying custom DTBs and drivers..."
 
-# Enable common storage and networking
-./scripts/config --enable CONFIG_MMC
-./scripts/config --enable CONFIG_MMC_SDHCI
-./scripts/config --enable CONFIG_MMC_SDHCI_OF_DWCMSHC
-./scripts/config --enable CONFIG_STMMAC_ETH
-./scripts/config --enable CONFIG_DWMAC_ROCKCHIP
+    # Apply patches FIRST (before our custom additions)
+    if [ -d "${PROJECT_ROOT}/external/custom/patches/linux" ]; then
+        log "Applying kernel patches..."
+        cd "${KERNEL_DIR}"
 
-# Enable USB
-./scripts/config --enable CONFIG_USB_DWC3
-./scripts/config --enable CONFIG_USB_DWC3_DUAL_ROLE
+        # Reset any previously applied patches
+        git checkout -- . 2>/dev/null || true
 
-# Update config with new settings
-make ARCH="${ARCH}" CROSS_COMPILE="${CROSS_COMPILE}" olddefconfig
+        for patch in "${PROJECT_ROOT}"/external/custom/patches/linux/*.patch; do
+            if [ -f "$patch" ]; then
+                log "Applying: $(basename "$patch")"
+                if patch -p1 --dry-run < "$patch" &>/dev/null; then
+                    patch -p1 < "$patch"
+                else
+                    warn "Patch $(basename "$patch") already applied or failed"
+                fi
+            fi
+        done
+        cd "${PROJECT_ROOT}"
+    else
+        warn "No patches found in external/custom/patches/linux"
+    fi
 
-# Save final config
-cp .config "${OUTPUT_DIR}/${BOARD}.config"
+    # Copy custom DTBs
+    if [ -d "${PROJECT_ROOT}/external/custom/board/rk3568/dts/rockchip" ]; then
+        log "Copying device trees..."
+        cp -v "${PROJECT_ROOT}"/external/custom/board/rk3568/dts/rockchip/*.dts \
+            "${KERNEL_DIR}/arch/arm64/boot/dts/rockchip/"
+        # Also copy dtsi files if they exist
+        if ls "${PROJECT_ROOT}"/external/custom/board/rk3568/dts/rockchip/*.dtsi >/dev/null 2>&1; then
+            cp -v "${PROJECT_ROOT}"/external/custom/board/rk3568/dts/rockchip/*.dtsi \
+                "${KERNEL_DIR}/arch/arm64/boot/dts/rockchip/"
+        fi
 
-# Build kernel
-log_info "Building kernel (this may take a while...)"
-make ARCH="${ARCH}" CROSS_COMPILE="${CROSS_COMPILE}" -j$(nproc) Image modules dtbs
+        # Add custom DTBs to Makefile so they get compiled
+        log "Adding custom DTBs to Makefile..."
+        local makefile_path="${KERNEL_DIR}/arch/arm64/boot/dts/rockchip/Makefile"
 
-# Install modules to temporary directory
-MODULES_DIR="${BUILD_DIR}/modules"
-rm -rf "${MODULES_DIR}"
-mkdir -p "${MODULES_DIR}"
+        if [ ! -f "$makefile_path" ]; then
+            error "Makefile not found at $makefile_path - kernel may not be cloned correctly"
+        fi
 
-log_info "Installing kernel modules"
-make ARCH="${ARCH}" CROSS_COMPILE="${CROSS_COMPILE}" INSTALL_MOD_PATH="${MODULES_DIR}" modules_install
+        for dts in "${PROJECT_ROOT}"/external/custom/board/rk3568/dts/rockchip/*.dts; do
+            if [ -f "$dts" ]; then
+                local dtb_name=$(basename "$dts" .dts)
+                # Check if already in Makefile
+                if ! grep -q "${dtb_name}.dtb" "$makefile_path" 2>/dev/null; then
+                    echo "dtb-\$(CONFIG_ARCH_ROCKCHIP) += ${dtb_name}.dtb" >> "$makefile_path"
+                    if [ $? -eq 0 ]; then
+                        log "✓ Added ${dtb_name}.dtb to Makefile"
+                    else
+                        error "Failed to add ${dtb_name}.dtb to Makefile"
+                    fi
+                else
+                    log "✓ ${dtb_name}.dtb already in Makefile"
+                fi
+            fi
+        done
+    else
+        warn "No custom DTBs found in external/custom/board/rk3568/dts/rockchip"
+    fi
 
-# Copy outputs
-log_info "Copying output files"
-cp -v arch/${ARCH}/boot/Image "${OUTPUT_DIR}/"
+    # Copy custom PHY drivers
+    if [ -f "${PROJECT_ROOT}/external/custom/board/rk3568/drivers/maxio.c" ]; then
+        log "Copying MAXIO PHY driver..."
+        cp -v "${PROJECT_ROOT}/external/custom/board/rk3568/drivers/maxio.c" \
+            "${KERNEL_DIR}/drivers/net/phy/"
 
-# Copy device tree blobs
-log_info "Copying device tree files"
-mkdir -p "${OUTPUT_DIR}/dtbs/rockchip"
+        # Add to PHY Kconfig
+        local kconfig="${KERNEL_DIR}/drivers/net/phy/Kconfig"
+        if ! grep -q "config MAXIO_PHY" "$kconfig" 2>/dev/null; then
+            log "Adding MAXIO_PHY to Kconfig..."
+            # Find MOTORCOMM_PHY and add MAXIO_PHY after it
+            sed -i '/config MOTORCOMM_PHY/,/Currently supports/{
+                /Currently supports/a\
+\
+config MAXIO_PHY\
+\ttristate "Maxio PHYs"\
+\thelp\
+\t  Enables support for Maxio network PHYs.\
+\t  Currently supports the MAE0621A Gigabit PHY.
+            }' "$kconfig"
+            log "✓ Added MAXIO_PHY to Kconfig"
+        else
+            log "✓ MAXIO_PHY already in Kconfig"
+        fi
 
-if [ -n "${DTB_FILE}" ]; then
-    cp -v arch/${ARCH}/boot/dts/rockchip/${DTB_FILE} "${OUTPUT_DIR}/dtbs/rockchip/"
-else
-    # Copy all RK356X DTBs
-    cp -v arch/${ARCH}/boot/dts/rockchip/rk356*.dtb "${OUTPUT_DIR}/dtbs/rockchip/" || true
-fi
+        # Add to PHY Makefile
+        local makefile="${KERNEL_DIR}/drivers/net/phy/Makefile"
+        if ! grep -q "maxio.o" "$makefile" 2>/dev/null; then
+            log "Adding maxio.o to Makefile..."
+            sed -i '/motorcomm.o/a\obj-$(CONFIG_MAXIO_PHY)\t\t+= maxio.o' "$makefile"
+            log "✓ Added maxio.o to Makefile"
+        else
+            log "✓ maxio.o already in Makefile"
+        fi
+    fi
+}
 
-# Create compressed tarball of modules
-log_info "Creating modules tarball"
-tar -czf "${OUTPUT_DIR}/modules.tar.gz" -C "${MODULES_DIR}" .
+configure_kernel() {
+    log "Configuring kernel..."
 
-# Get kernel version
-KERNEL_VERSION=$(make ARCH="${ARCH}" CROSS_COMPILE="${CROSS_COMPILE}" kernelrelease)
-log_info "Kernel version: ${KERNEL_VERSION}"
+    cd "${KERNEL_DIR}"
 
-# Create boot files
-log_info "Creating boot.scr for U-Boot"
-cat > "${BUILD_DIR}/boot.cmd" << 'EOF'
-# U-Boot boot script for RK356X
+    # Clean previous config
+    [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Cleaning previous kernel config"
+    quiet_run make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- mrproper || true
 
-setenv bootargs "root=/dev/mmcblk0p2 rootwait rw console=ttyS2,1500000 earlycon=uart8250,mmio32,0xfe660000"
+    # Start with rockchip defconfig
+    [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Applying ${DEFCONFIG}"
+    quiet_run make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- "${DEFCONFIG}"
 
-load ${devtype} ${devnum}:${distro_bootpart} ${kernel_addr_r} /boot/Image
-load ${devtype} ${devnum}:${distro_bootpart} ${fdt_addr_r} /boot/dtbs/${fdtfile}
+    # Apply config fragment if exists
+    if [ -f "${PROJECT_ROOT}/external/custom/board/rk3568/kernel.config" ]; then
+        log "Merging kernel config fragment..."
 
-booti ${kernel_addr_r} - ${fdt_addr_r}
-EOF
+        # Append fragment to .config
+        cat "${PROJECT_ROOT}/external/custom/board/rk3568/kernel.config" >> .config
 
-# Compile boot script if mkimage is available
-if command -v mkimage &> /dev/null; then
-    mkimage -C none -A arm64 -T script -d "${BUILD_DIR}/boot.cmd" "${OUTPUT_DIR}/boot.scr"
-    log_info "Created boot.scr"
-fi
+        # Resolve dependencies
+        [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Resolving config dependencies"
+        quiet_run make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
+    fi
 
-# Create README
-cat > "${OUTPUT_DIR}/README.md" << EOF
-# Kernel for ${BOARD}
+    # GPU config is managed via kernel.config fragment
+    # (Don't force Mali or Panfrost here - let the fragment decide)
 
-Built: $(date)
-Version: ${KERNEL_VERSION}
-Branch: ${KERNEL_BRANCH}
+    # Update config with new settings
+    [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Finalizing kernel configuration"
+    quiet_run make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
 
-## Files
+    log "Kernel configuration complete"
+    cd "${PROJECT_ROOT}"
+}
 
-- \`Image\` - Kernel image
-- \`dtbs/rockchip/${DTB_FILE}\` - Device tree blob
-- \`modules.tar.gz\` - Kernel modules tarball
-- \`boot.scr\` - U-Boot boot script (optional)
-- \`${BOARD}.config\` - Kernel configuration used
+build_kernel() {
+    log "Building kernel with ${CORES} cores..."
 
-## Installation
+    cd "${KERNEL_DIR}"
 
-### To boot partition:
-\`\`\`bash
-# Mount boot partition
-sudo mount /dev/mmcblk0p1 /mnt/boot
+    # Build kernel image, DTBs, and modules
+    [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Compiling kernel (Image + DTBs + modules)"
+    quiet_run make -j"${CORES}" ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
+        Image dtbs modules || error "Kernel build failed"
 
-# Copy kernel and dtb
-sudo cp Image /mnt/boot/
-sudo cp dtbs/rockchip/${DTB_FILE} /mnt/boot/dtbs/
-sudo cp boot.scr /mnt/boot/  # if using U-Boot script
+    log "✓ Kernel build complete"
 
-# Unmount
-sudo umount /mnt/boot
-\`\`\`
+    # Show built DTB
+    if [ -f "arch/arm64/boot/dts/rockchip/${DTB_NAME}.dtb" ]; then
+        log "✓ DTB built: ${DTB_NAME}.dtb"
+    else
+        warn "DTB ${DTB_NAME}.dtb not found!"
+    fi
 
-### To rootfs:
-\`\`\`bash
-# Mount rootfs
-sudo mount /dev/mmcblk0p2 /mnt/rootfs
+    cd "${PROJECT_ROOT}"
+}
 
-# Extract modules
-sudo tar -xzf modules.tar.gz -C /mnt/rootfs/
+build_deb_packages() {
+    log "Creating .deb packages..."
 
-# Unmount
-sudo umount /mnt/rootfs
-\`\`\`
+    cd "${KERNEL_DIR}"
 
-## Device Tree
+    # Remove any existing build artifacts from parent directory
+    # (might be root-owned from previous builds)
+    rm -f ../linux-*.deb ../linux-*.changes ../linux-*.buildinfo 2>/dev/null || true
 
-DTB used: ${DTB_FILE}
+    # Set version for packages
+    local version=$(make -s kernelrelease)
+    # Replace underscores with hyphens (Debian package versions can't have underscores)
+    local pkg_version="1.0.0-rockchip-${BOARD//_/-}"
 
-If you need a different DTB, check \`dtbs/rockchip/\` for other options.
-EOF
+    log "Kernel version: ${version}"
+    log "Package version: ${pkg_version}"
 
-log_info "Kernel build complete!"
-log_info "Kernel version: ${KERNEL_VERSION}"
-log_info "Output files in: ${OUTPUT_DIR}"
-ls -lh "${OUTPUT_DIR}"
+    # Build deb packages (creates in parent directory)
+    [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Building .deb packages"
+    KDEB_PKGVERSION="${pkg_version}" \
+    quiet_run make -j"${CORES}" ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
+        bindeb-pkg || error "Package build failed"
+
+    cd "${PROJECT_ROOT}"
+
+    # Move packages to a known location
+    mkdir -p "${PROJECT_ROOT}/output/kernel-debs"
+    mv -v linux-*.deb "${PROJECT_ROOT}/output/kernel-debs/" 2>/dev/null || true
+
+    log "✓ Kernel .deb packages created in output/kernel-debs/"
+    ls -lh "${PROJECT_ROOT}/output/kernel-debs/"
+}
+
+install_to_rootfs() {
+    local rootfs_dir="${PROJECT_ROOT}/rootfs/work"
+
+    if [ ! -d "${rootfs_dir}" ]; then
+        warn "Rootfs not found at ${rootfs_dir}"
+        warn "Build rootfs first with: ./scripts/build-debian-rootfs.sh"
+        return
+    fi
+
+    log "Installing kernel .debs to rootfs..."
+
+    # Copy .deb packages to rootfs
+    sudo mkdir -p "${rootfs_dir}/tmp/kernel-debs"
+    sudo cp "${PROJECT_ROOT}"/output/kernel-debs/linux-image-*.deb "${rootfs_dir}/tmp/kernel-debs/"
+    sudo cp "${PROJECT_ROOT}"/output/kernel-debs/linux-headers-*.deb "${rootfs_dir}/tmp/kernel-debs/" 2>/dev/null || true
+
+    # Install via chroot
+    sudo cp /usr/bin/qemu-aarch64-static "${rootfs_dir}/usr/bin/" 2>/dev/null || true
+
+    sudo chroot "${rootfs_dir}" /bin/bash << 'CHROOT_EOF'
+set -e
+cd /tmp/kernel-debs
+echo "Installing kernel packages..."
+dpkg -i linux-image-*.deb
+dpkg -i linux-headers-*.deb 2>/dev/null || true
+rm -rf /tmp/kernel-debs
+echo "Kernel installed successfully"
+CHROOT_EOF
+
+    log "✓ Kernel installed to rootfs"
+}
+
+show_summary() {
+    log ""
+    log "=========================================="
+    log "Kernel Build Summary"
+    log "=========================================="
+    log "Board:          ${BOARD}"
+    log "DTB:            ${DTB_NAME}.dtb"
+    log "Kernel dir:     ${KERNEL_DIR}"
+    log "Packages:       output/kernel-debs/"
+    log ""
+
+    if [ -d "${PROJECT_ROOT}/output/kernel-debs" ]; then
+        log "Built packages:"
+        ls -1 "${PROJECT_ROOT}/output/kernel-debs/"
+    fi
+
+    log ""
+    log "Next steps:"
+    log "1. Build rootfs:     ./scripts/build-debian-rootfs.sh"
+    log "2. Or install now:   Re-run this script to install to existing rootfs"
+    log "3. Assemble image:   ./scripts/assemble-image.sh ${BOARD}"
+    log "=========================================="
+}
+
+main() {
+    log "Building Rockchip kernel ${KERNEL_VERSION} for ${BOARD}"
+    log ""
+
+    check_deps
+    clone_kernel
+    copy_custom_files
+    configure_kernel
+    build_kernel
+    build_deb_packages
+
+    # Optional: install to rootfs if it exists
+    if [ -d "${PROJECT_ROOT}/rootfs/work" ]; then
+        read -p "Install kernel to existing rootfs? (Y/n) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+            install_to_rootfs
+        fi
+    fi
+
+    show_summary
+}
+
+main "$@"

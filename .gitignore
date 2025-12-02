@@ -1,11 +1,15 @@
 # Build directories
 build/
 output/
+rootfs/
 
 # Buildroot (tracked separately, only external tree is versioned)
 buildroot/
 !buildroot/.gitkeep
 buildroot-*.tar.gz
+
+# U-Boot source (cloned during build)
+u-boot/
 
 # Temporary files
 *.tmp
@@ -88,3 +92,8 @@ tpl/
 
 # Downloaded tools
 tools/
+kernel-6.6/
+linux-*.deb
+linux-*.changes
+linux-*.buildinfo
+output/build-*.log

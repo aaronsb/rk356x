@@ -1,0 +1,2 @@
+# Allow rock user to run sudo without password (development board configuration)
+rock ALL=(ALL) NOPASSWD: ALL
