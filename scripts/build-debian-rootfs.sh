@@ -2,7 +2,7 @@
 set -e
 
 # Debian/Ubuntu Rootfs Build Script for RK3568
-# Based on Firefly guide but updated for Ubuntu 24.04 LTS
+# Based on Firefly guide but updated for Ubuntu 22.04 LTS
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -70,8 +70,8 @@ if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
 fi
 
 # Configuration
-UBUNTU_VERSION="24.04.3"
-UBUNTU_RELEASE="noble"
+UBUNTU_VERSION="22.04.5"
+UBUNTU_RELEASE="jammy"
 UBUNTU_BASE_URL="https://cdimage.ubuntu.com/ubuntu-base/releases/${UBUNTU_RELEASE}/release"
 UBUNTU_BASE="ubuntu-base-${UBUNTU_VERSION}-base-arm64.tar.gz"
 
@@ -194,7 +194,7 @@ apt-get update
 # Install debian-archive-keyring which contains all Debian signing keys
 apt-get install -y debian-archive-keyring
 
-# Add Debian bookworm repository for chromium (Ubuntu 24.04 only has snap stub)
+# Add Debian bookworm repository for chromium (Ubuntu 22.04+ only has snap stub)
 # Use lower priority (100) so Ubuntu packages are preferred by default
 cat > /etc/apt/sources.list.d/debian-chromium.list << 'DEBIAN_SOURCES'
 # Debian bookworm for chromium browser (real .deb package, not snap)
