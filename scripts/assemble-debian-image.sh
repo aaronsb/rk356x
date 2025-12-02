@@ -385,7 +385,8 @@ echo "=== Debian RK3568 Boot Script ==="
 setenv bootargs
 
 # Set bootargs explicitly
-setenv bootargs "root=PARTUUID=${ROOT_PARTUUID} rootwait rw console=ttyS2,1500000 earlycon=uart8250,mmio32,0xfe660000"
+# video=HDMI-A-1:1920x1080@60e forces HDMI mode at boot to prevent "Cannot find any crtc or sizes" error
+setenv bootargs "root=PARTUUID=${ROOT_PARTUUID} rootwait rw console=ttyS2,1500000 earlycon=uart8250,mmio32,0xfe660000 video=HDMI-A-1:1920x1080@60e"
 
 # Load kernel and DTB from current boot device
 load \${devtype} \${devnum}:\${distro_bootpart} \${kernel_addr_r} /Image
