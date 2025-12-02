@@ -358,6 +358,16 @@ install_boot_files() {
     cp "${KERNEL_DIR}/arch/arm64/boot/dts/rockchip/${DTB_NAME}.dtb" \
         "${WORK_DIR}/boot/"
 
+    # Copy U-Boot images if available (for on-board flashing with manage-uboot)
+    if [ -d "${OUTPUT_DIR}/uboot" ] && [ -f "${OUTPUT_DIR}/uboot/idbloader.img" ]; then
+        log "Copying U-Boot images to boot partition..."
+        mkdir -p "${WORK_DIR}/boot/uboot"
+        cp "${OUTPUT_DIR}/uboot/idbloader.img" "${WORK_DIR}/boot/uboot/"
+        cp "${OUTPUT_DIR}/uboot/uboot.img" "${WORK_DIR}/boot/uboot/"
+        cp "${OUTPUT_DIR}/uboot/trust.img" "${WORK_DIR}/boot/uboot/"
+        log "✓ U-Boot images copied (available for on-board flashing)"
+    fi
+
     # Get PARTUUID of root partition for extlinux.conf
     log "Getting root partition PARTUUID..."
     ROOT_PARTUUID=$(blkid -s PARTUUID -o value "${ROOT_PART}")

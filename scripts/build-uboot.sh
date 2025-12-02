@@ -203,12 +203,43 @@ build_uboot() {
     # Configure for RK3568
     make ${DEFCONFIG}
 
+    # Apply defconfig patch to disable SPL hardware crypto
+    # (Required because EVB device tree lacks clock configuration for crypto engine)
+    if [ -f "${PROJECT_ROOT}/config/uboot-rk3568-disable-spl-hw-crypto.patch" ]; then
+        log "Applying SPL hardware crypto disable patch..."
+        patch -p1 < "${PROJECT_ROOT}/config/uboot-rk3568-disable-spl-hw-crypto.patch" || warn "Patch may already be applied"
+        make oldconfig </dev/null
+    fi
+
+    # Get ATF/TEE blob paths for FIT image creation
+    # Try newer ultra version which may have critical fixes
+    local bl31_blob="${RKBIN_DIR}/bin/rk35/rk3568_bl31_ultra_v2.17.elf"
+    local bl32_blob="${RKBIN_DIR}/bin/rk35/rk3568_bl32_v2.15.bin"
+
+    if [ ! -f "${bl31_blob}" ]; then
+        error "BL31 blob not found: ${bl31_blob}"
+    fi
+
+    # Copy BL31 as bl31.elf for FIT generator (REQUIRED!)
+    cp "${bl31_blob}" "${UBOOT_DIR}/bl31.elf"
+    log "✓ BL31/ATF blob prepared"
+
+    # Copy BL32 as tee.bin for FIT generator (optional, but recommended)
+    if [ -f "${bl32_blob}" ]; then
+        cp "${bl32_blob}" "${UBOOT_DIR}/tee.bin"
+        log "✓ BL32/TEE blob prepared"
+    else
+        warn "BL32 not found, building without OP-TEE"
+    fi
+
     # Build with relaxed warnings for GCC compatibility
     # Newer GCC (Ubuntu 24.04) is strict about enum/int mismatches and uninitialized vars
     # in older Rockchip U-Boot code
+    # BL31 path tells make to create u-boot.itb (FIT image with ATF bundled)
     log "Compiling U-Boot (this may take a few minutes)..."
     make -j$(nproc) \
         CROSS_COMPILE=aarch64-linux-gnu- \
+        BL31="${bl31_blob}" \
         KCFLAGS="-Wno-error=enum-int-mismatch -Wno-error=enum-conversion -Wno-error=maybe-uninitialized"
 
     if [ ! -f "u-boot.bin" ]; then
@@ -216,6 +247,20 @@ build_uboot() {
     fi
 
     log "✓ U-Boot compiled successfully"
+
+    # Explicitly build u-boot.itb (FIT image with ATF/TEE)
+    log "Building u-boot.itb (FIT image)..."
+    make -j$(nproc) \
+        CROSS_COMPILE=aarch64-linux-gnu- \
+        BL31="${bl31_blob}" \
+        KCFLAGS="-Wno-error=enum-int-mismatch -Wno-error=enum-conversion -Wno-error=maybe-uninitialized" \
+        u-boot.itb
+
+    if [ ! -f "u-boot.itb" ]; then
+        error "u-boot.itb creation failed - check build log for FIT generation errors"
+    fi
+
+    log "✓ u-boot.itb created successfully ($(du -h u-boot.itb | cut -f1))"
 }
 
 package_uboot() {
@@ -225,7 +270,7 @@ package_uboot() {
 
     # Rockchip binary blob files (use latest versions available in rkbin)
     local ddr_blob="${RKBIN_DIR}/bin/rk35/rk3568_ddr_1560MHz_v1.23.bin"
-    local bl31_blob="${RKBIN_DIR}/bin/rk35/rk3568_bl31_v1.45.elf"
+    local bl31_blob="${RKBIN_DIR}/bin/rk35/rk3568_bl31_ultra_v2.17.elf"
     local bl32_blob="${RKBIN_DIR}/bin/rk35/rk3568_bl32_v2.15.bin"
 
     # Verify blobs exist
@@ -247,14 +292,15 @@ package_uboot() {
         "${ddr_blob}:spl/u-boot-spl.bin" \
         idbloader.img
 
-    # Use the u-boot.img created by the build (standard U-Boot format)
-    # loaderimage tool has compatibility issues, so we use the build's own u-boot.img
-    log "Using u-boot.img from build..."
-    /bin/cp -f u-boot.img uboot.img
+    # Check if u-boot.itb was created (FIT image with U-Boot + DTB + ATF)
+    if [ -f "u-boot.itb" ]; then
+        log "Using u-boot.itb (FIT image with ATF bundled)..."
+        /bin/cp -f u-boot.itb uboot.img
+        log "✓ u-boot.itb found ($(du -h u-boot.itb | cut -f1))"
 
-    # Create trust.img (ATF BL31 + OP-TEE BL32)
-    log "Creating trust.img..."
-    cat > trust.ini << EOF
+        # Create trust.img for compatibility with other boot methods
+        log "Creating trust.img (for compatibility)..."
+        cat > trust.ini << EOF
 [VERSION]
 MAJOR=1
 MINOR=0
@@ -278,8 +324,10 @@ SEC=0
 [OUTPUT]
 PATH=trust.img
 EOF
-
-    "${RKBIN_DIR}/tools/trust_merger" trust.ini
+        "${RKBIN_DIR}/tools/trust_merger" trust.ini
+    else
+        error "u-boot.itb not found! Make sure BL31 was specified during build."
+    fi
 
     log "✓ U-Boot packaged"
 }

@@ -35,6 +35,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     debootstrap \
     wget \
     curl \
+    # Python for U-Boot FIT image generation
+    python3 \
+    python-is-python3 \
     # Utilities
     vim \
     less \
@@ -42,6 +45,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     file \
     ca-certificates \
     u-boot-tools
+
+# Create python2 symlink for legacy scripts (Rockchip U-Boot FIT generator)
+RUN ln -s /usr/bin/python3 /usr/bin/python2
 
 # Set working directory
 WORKDIR /work

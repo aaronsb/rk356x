@@ -568,6 +568,19 @@ clean_artifacts() {
         fi
     fi
 
+    # Clean U-Boot artifacts
+    if [ -d "${PROJECT_ROOT}/output/uboot" ]; then
+        info "Removing U-Boot binaries..."
+        rm -rf "${PROJECT_ROOT}/output/uboot"
+        cleaned=true
+    fi
+
+    if [ -d "${PROJECT_ROOT}/u-boot" ]; then
+        info "Removing U-Boot source directory..."
+        sudo rm -rf "${PROJECT_ROOT}/u-boot"
+        cleaned=true
+    fi
+
     # Clean final images
     if ls "${PROJECT_ROOT}/output"/rk3568-debian-*.img* &>/dev/null; then
         info "Removing final images..."
