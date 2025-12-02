@@ -294,7 +294,7 @@
 };
 
 &dsi1_in_vp1 {
-        status = "okay";
+        status = "disabled";
 };
 
 &video_phy1 {
@@ -325,11 +325,11 @@
 };
 
 &edp_in_vp1 {
-        status = "okay";
+        status = "disabled";
 };
 &route_edp {
         connect = <&vp1_out_edp>;
-        status = "okay";
+        status = "disabled";
 };
 
 &lvds {
@@ -362,14 +362,14 @@
 };
 
 &lvds_in_vp1 {
-        status = "okay";
+        status = "disabled";
 };
 
 &lvds_in_vp2 {
         status = "disabled";
 };
 &route_lvds {
-        status = "okay";
+        status = "disabled";
         connect = <&vp1_out_lvds>;
 };
 
