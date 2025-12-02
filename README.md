@@ -18,7 +18,7 @@ cd rk356x
 
 # Or build components individually
 ./scripts/build-kernel.sh          # Kernel 6.1 with custom DTBs
-./scripts/build-debian-rootfs.sh   # Ubuntu 22.04 rootfs
+./scripts/build-debian-rootfs.sh   # Debian 12 rootfs
 ./scripts/assemble-debian-image.sh # Create bootable SD card image
 ```
 
@@ -38,7 +38,7 @@ xzcat output/rk3568-debian-*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress
 | **U-Boot** | Mainline (2024.10+) | From denx.de, supports SD card and eMMC boot |
 | **Linux Kernel** | 6.1 LTS (Rockchip BSP) | Custom DTBs, MAXIO PHY driver, display support, Panfrost GPU |
 | **GPU Driver** | Panfrost (Mesa) | Open-source Mali-G52 driver with desktop OpenGL 3.1 |
-| **Root Filesystem** | Ubuntu 22.04 LTS | Debian-based with XFCE desktop and hardware acceleration |
+| **Root Filesystem** | Debian 12 (bookworm) | Pure Debian with XFCE desktop, chromium, and kernel 6.1 |
 | **Init System** | systemd | Modern init with networking and services |
 
 **Desktop Environment:**
@@ -115,13 +115,14 @@ Based on Rockchip's BSP kernel (LTS until Dec 2026) with proven Panfrost support
 - Mali-G52 GPU via open-source Panfrost driver
 - Hardware-accelerated OpenGL 3.1 for desktop applications
 
-### Ubuntu 22.04 Base
-Debian/Ubuntu-based rootfs provides:
+### Debian 12 (bookworm)
+Pure Debian rootfs provides:
+- Perfect kernel match (Debian 12 ships with kernel 6.1)
 - Standard package management (apt)
-- Long-term support (LTS until 2027)
-- Large software repository
+- Long-term support (LTS until June 2028)
+- Large software repository with native chromium
 - Easy desktop environment setup
-- Better compatibility with kernel 6.1
+- No repository mixing required
 
 ---
 

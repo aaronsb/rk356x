@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-# Debian/Ubuntu Rootfs Build Script for RK3568
-# Based on Firefly guide but updated for Ubuntu 22.04 LTS
+# Debian Rootfs Build Script for RK3568
+# Pure Debian 12 (bookworm) with kernel 6.1 LTS
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -70,10 +70,8 @@ if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
 fi
 
 # Configuration
-UBUNTU_VERSION="22.04.5"
-UBUNTU_RELEASE="jammy"
-UBUNTU_BASE_URL="https://cdimage.ubuntu.com/ubuntu-base/releases/${UBUNTU_RELEASE}/release"
-UBUNTU_BASE="ubuntu-base-${UBUNTU_VERSION}-base-arm64.tar.gz"
+DEBIAN_RELEASE="bookworm"  # Debian 12 (LTS until June 2028)
+DEBIAN_MIRROR="http://deb.debian.org/debian"
 
 ROOTFS_DIR="${PROJECT_ROOT}/rootfs"
 ROOTFS_WORK="${ROOTFS_DIR}/work"
@@ -134,31 +132,21 @@ check_deps() {
     fi
 }
 
-download_ubuntu_base() {
-    log "Downloading Ubuntu Base ${UBUNTU_VERSION}..."
-
-    mkdir -p "${ROOTFS_DIR}"
-    cd "${ROOTFS_DIR}"
-
-    if [ ! -f "${UBUNTU_BASE}" ]; then
-        wget "${UBUNTU_BASE_URL}/${UBUNTU_BASE}" || error "Failed to download Ubuntu Base"
-    else
-        log "Ubuntu Base already downloaded"
-    fi
-}
-
-extract_rootfs() {
-    log "Extracting rootfs..."
+create_debian_rootfs() {
+    log "Creating Debian ${DEBIAN_RELEASE} base system with debootstrap..."
 
     rm -rf "${ROOTFS_WORK}"
-    mkdir -p "${ROOTFS_WORK}"
+    mkdir -p "${ROOTFS_DIR}"
 
+    # Use debootstrap to create minimal Debian base
     if [ "$QUIET_MODE" = "true" ]; then
-        echo -e "${YELLOW}▸${NC} Extracting Ubuntu base rootfs"
-        maybe_sudo tar -xzf "${ROOTFS_DIR}/${UBUNTU_BASE}" -C "${ROOTFS_WORK}" 2>&1 | grep -v "tar:"
+        echo -e "${YELLOW}▸${NC} Running debootstrap (this may take a few minutes)..."
+        maybe_sudo debootstrap --arch=arm64 --foreign "${DEBIAN_RELEASE}" "${ROOTFS_WORK}" "${DEBIAN_MIRROR}" > /dev/null 2>&1 || error "First stage debootstrap failed"
     else
-        maybe_sudo tar -xzf "${ROOTFS_DIR}/${UBUNTU_BASE}" -C "${ROOTFS_WORK}"
+        maybe_sudo debootstrap --arch=arm64 --foreign "${DEBIAN_RELEASE}" "${ROOTFS_WORK}" "${DEBIAN_MIRROR}" || error "First stage debootstrap failed"
     fi
+
+    log "Completed first stage debootstrap"
 }
 
 setup_qemu() {
@@ -168,6 +156,16 @@ setup_qemu() {
 
     # DNS resolution
     maybe_sudo cp /etc/resolv.conf "${ROOTFS_WORK}/etc/resolv.conf"
+
+    # Complete second stage of debootstrap (runs inside chroot with QEMU)
+    log "Running second stage debootstrap..."
+    if [ "$QUIET_MODE" = "true" ]; then
+        echo -e "${YELLOW}▸${NC} Completing debootstrap (installing base packages)..."
+        maybe_sudo chroot "${ROOTFS_WORK}" /debootstrap/debootstrap --second-stage > /dev/null 2>&1 || error "Second stage debootstrap failed"
+    else
+        maybe_sudo chroot "${ROOTFS_WORK}" /debootstrap/debootstrap --second-stage || error "Second stage debootstrap failed"
+    fi
+    log "Completed second stage debootstrap"
 }
 
 customize_rootfs() {
@@ -187,51 +185,15 @@ export PROFILE="${PROFILE}"
 export PYTHONDONTWRITEBYTECODE=1
 export DEB_PYTHON_INSTALL_LAYOUT=deb_system
 
+# Configure Debian repositories (main, contrib, non-free for firmware)
+cat > /etc/apt/sources.list << 'SOURCES_LIST'
+deb http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
+deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
+SOURCES_LIST
+
 # Update package lists
 apt-get update
-
-# Add Debian GPG keys for repository verification
-# Download debian-archive-keyring directly from Debian (Ubuntu 22.04's version is too old)
-# Ubuntu 22.04 was released in 2022, but Debian bookworm was released in 2023
-# so Ubuntu's keyring doesn't have the bookworm signing keys
-echo "Installing Debian archive keyring from Debian repository..."
-apt-get install -y wget
-wget -q http://deb.debian.org/debian/pool/main/d/debian-archive-keyring/debian-archive-keyring_2023.4_all.deb -O /tmp/debian-keyring.deb
-dpkg -i /tmp/debian-keyring.deb
-rm /tmp/debian-keyring.deb
-
-# Add Debian bookworm repository for chromium (Ubuntu 22.04+ only has snap stub)
-# Use lower priority (100) so Ubuntu packages are preferred by default
-cat > /etc/apt/sources.list.d/debian-chromium.list << 'DEBIAN_SOURCES'
-# Debian bookworm for chromium browser (real .deb package, not snap)
-deb [arch=arm64 signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian bookworm main
-deb [arch=arm64 signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian-security bookworm-security main
-DEBIAN_SOURCES
-
-# Set lower priority for Debian repos (Ubuntu packages preferred by default)
-cat > /etc/apt/preferences.d/debian-chromium << 'DEBIAN_PREFS'
-# Prefer Ubuntu packages by default
-Package: *
-Pin: release o=Ubuntu
-Pin-Priority: 500
-
-# Only use Debian for chromium and dependencies
-Package: chromium chromium-common chromium-driver chromium-sandbox
-Pin: release o=Debian
-Pin-Priority: 600
-
-# Lower priority for all other Debian packages
-Package: *
-Pin: release o=Debian
-Pin-Priority: 100
-DEBIAN_PREFS
-
-# Update with Debian repos included
-if ! apt-get update; then
-    echo "ERROR: apt-get update failed after adding Debian repositories"
-    echo "This usually means GPG key verification failed"
-    exit 1
-fi
 
 # Use dpkg-divert to permanently redirect py3compile to our stub
 # This prevents any package from installing the real py3compile
@@ -360,7 +322,7 @@ if [ "\$PROFILE" = "full" ]; then
     # Full profile: GNOME Web (Epiphany) and Chromium
     apt-get install -y \$APT_OPTS epiphany-browser chromium
 else
-    # Minimal profile: Chromium from Debian (real .deb, not Ubuntu's snap stub)
+    # Minimal profile: Chromium (native .deb package in Debian)
     # Chromium provides hardware-accelerated rendering via OpenGL
     apt-get install -y \$APT_OPTS chromium
 fi
@@ -802,13 +764,12 @@ cleanup() {
 }
 
 main() {
-    log "Building Debian rootfs for RK3568"
+    log "Building Debian ${DEBIAN_RELEASE} rootfs for RK3568"
     log "Profile: ${PROFILE}"
     log ""
 
     check_deps
-    download_ubuntu_base
-    extract_rootfs
+    create_debian_rootfs
     setup_qemu
     customize_rootfs
     install_setup_emmc
@@ -819,19 +780,21 @@ main() {
 
     log ""
     log "✓ Build complete!"
+    log "Distribution: Debian ${DEBIAN_RELEASE} (kernel 6.1 LTS)"
     log "Profile: ${PROFILE}"
     log "Rootfs image: ${ROOTFS_IMAGE}"
     log ""
     if [ "$PROFILE" = "minimal" ]; then
         log "Minimal profile notes:"
         log "  - LightDM auto-starts XFCE desktop on boot"
+        log "  - Chromium browser with OpenGL acceleration"
         log "  - No GStreamer plugins: Install if you need video playback"
         log "  - To build full profile: PROFILE=full ./scripts/build-debian-rootfs.sh"
         log ""
     fi
     log "Next steps:"
     log "1. Build kernel with: ./scripts/build-kernel.sh"
-    log "2. Flash to SD card with: ./scripts/flash-image.sh"
+    log "2. Assemble image with: ./scripts/assemble-debian-image.sh"
 }
 
 trap cleanup EXIT
