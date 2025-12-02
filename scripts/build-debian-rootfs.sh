@@ -49,8 +49,7 @@ if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
 
         docker run --rm -it \
             --privileged \
-            --dns 8.8.8.8 \
-            --dns 8.8.4.4 \
+            --network=host \
             -v "${PROJECT_ROOT}:/work" \
             -v "${PROJECT_ROOT}/.cache/rootfs-apt-cache:/apt-cache" \
             -v "${PROJECT_ROOT}/.cache/rootfs-apt-lists:/apt-lists" \
