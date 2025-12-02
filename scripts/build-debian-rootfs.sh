@@ -155,8 +155,17 @@ setup_qemu() {
 
     maybe_sudo cp /usr/bin/qemu-aarch64-static "${ROOTFS_WORK}/usr/bin/"
 
-    # DNS resolution
-    maybe_sudo cp /etc/resolv.conf "${ROOTFS_WORK}/etc/resolv.conf"
+    # Bind-mount resolv.conf for live DNS resolution in chroot
+    # This is critical for QEMU user-mode emulation to access network
+    if [ ! -f /etc/resolv.conf ]; then
+        echo "nameserver 8.8.8.8" | maybe_sudo tee /tmp/resolv.conf.chroot > /dev/null
+        echo "nameserver 8.8.4.4" | maybe_sudo tee -a /tmp/resolv.conf.chroot > /dev/null
+        RESOLV_CONF_SRC="/tmp/resolv.conf.chroot"
+    else
+        RESOLV_CONF_SRC="/etc/resolv.conf"
+    fi
+    maybe_sudo touch "${ROOTFS_WORK}/etc/resolv.conf"
+    maybe_sudo mount --bind "${RESOLV_CONF_SRC}" "${ROOTFS_WORK}/etc/resolv.conf"
 
     # Complete second stage of debootstrap (runs inside chroot with QEMU)
     log "Running second stage debootstrap..."
@@ -265,9 +274,16 @@ else
         iw
 fi
 
-# Generate locales
-locale-gen en_US.UTF-8
-update-locale LANG=en_US.UTF-8
+# Configure and generate locales
+# Enable en_US.UTF-8 in locale.gen
+echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+locale-gen
+
+# Set default locale (update-locale can fail in QEMU chroot, so write directly)
+cat > /etc/default/locale << 'LOCALE_CONF'
+LANG=en_US.UTF-8
+LC_ALL=en_US.UTF-8
+LOCALE_CONF
 
 # Install XFCE desktop
 if [ "\$PROFILE" = "full" ]; then
@@ -436,16 +452,6 @@ echo "Rootfs customization complete"
 EOF
 
     maybe_sudo chmod +x "${ROOTFS_WORK}/tmp/customize.sh"
-
-    # Ensure DNS resolution works in chroot
-    # Use Google DNS as fallback if host resolv.conf doesn't work
-    if [ -f /etc/resolv.conf ]; then
-        maybe_sudo cp /etc/resolv.conf "${ROOTFS_WORK}/etc/resolv.conf"
-    else
-        # Fallback to Google DNS
-        echo "nameserver 8.8.8.8" | maybe_sudo tee "${ROOTFS_WORK}/etc/resolv.conf" > /dev/null
-        echo "nameserver 8.8.4.4" | maybe_sudo tee -a "${ROOTFS_WORK}/etc/resolv.conf" > /dev/null
-    fi
 
     # Mount proc, sys, dev for chroot
     maybe_sudo mount -t proc /proc "${ROOTFS_WORK}/proc"
@@ -760,18 +766,22 @@ create_image() {
 cleanup() {
     log "Cleaning up..."
 
-    # Ensure everything is unmounted
+    # Ensure everything is unmounted (in reverse order of mounting)
     maybe_sudo umount -lf "${ROOTFS_WORK}/var/cache/apt" 2>/dev/null || true
     maybe_sudo umount -lf "${ROOTFS_WORK}/var/lib/apt/lists" 2>/dev/null || true
-    maybe_sudo umount -lf "${ROOTFS_WORK}/proc" 2>/dev/null || true
-    maybe_sudo umount -lf "${ROOTFS_WORK}/sys" 2>/dev/null || true
+    maybe_sudo umount -lf "${ROOTFS_WORK}/etc/resolv.conf" 2>/dev/null || true
     maybe_sudo umount -lf "${ROOTFS_WORK}/dev/pts" 2>/dev/null || true
     maybe_sudo umount -lf "${ROOTFS_WORK}/dev" 2>/dev/null || true
+    maybe_sudo umount -lf "${ROOTFS_WORK}/sys" 2>/dev/null || true
+    maybe_sudo umount -lf "${ROOTFS_WORK}/proc" 2>/dev/null || true
 
     if [ "${KEEP_WORK:-0}" != "1" ]; then
         maybe_sudo rm -rf "${ROOTFS_WORK}"
         log "Work directory removed (set KEEP_WORK=1 to preserve)"
     fi
+
+    # Clean up temporary resolv.conf if we created one
+    [ -f /tmp/resolv.conf.chroot ] && rm -f /tmp/resolv.conf.chroot || true
 }
 
 main() {
