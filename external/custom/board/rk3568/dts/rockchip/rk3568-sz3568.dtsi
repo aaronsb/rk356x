@@ -1071,6 +1071,7 @@
 
 &gpu {
 	mali-supply = <&vdd_gpu>;
+	operating-points-v2 = <&gpu_opp_table_panfrost>;
 	status = "okay";
 };
 

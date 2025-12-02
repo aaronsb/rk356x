@@ -3,6 +3,36 @@
 #include <dt-bindings/display/rockchip_vop.h>
 
 / {
+        /* Simple GPU OPP table for Panfrost (no Rockchip vendor extensions) */
+        gpu_opp_table_panfrost: gpu-opp-table-panfrost {
+                compatible = "operating-points-v2";
+
+                opp-200000000 {
+                        opp-hz = /bits/ 64 <200000000>;
+                        opp-microvolt = <850000>;
+                };
+
+                opp-300000000 {
+                        opp-hz = /bits/ 64 <300000000>;
+                        opp-microvolt = <850000>;
+                };
+
+                opp-400000000 {
+                        opp-hz = /bits/ 64 <400000000>;
+                        opp-microvolt = <850000>;
+                };
+
+                opp-600000000 {
+                        opp-hz = /bits/ 64 <600000000>;
+                        opp-microvolt = <900000>;
+                };
+
+                opp-700000000 {
+                        opp-hz = /bits/ 64 <700000000>;
+                        opp-microvolt = <950000>;
+                };
+        };
+
         panel {
                 compatible = "simple-panel";
                 backlight = <&backlight>;
