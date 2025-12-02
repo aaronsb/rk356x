@@ -436,6 +436,16 @@ EOF
 
     maybe_sudo chmod +x "${ROOTFS_WORK}/tmp/customize.sh"
 
+    # Ensure DNS resolution works in chroot
+    # Use Google DNS as fallback if host resolv.conf doesn't work
+    if [ -f /etc/resolv.conf ]; then
+        maybe_sudo cp /etc/resolv.conf "${ROOTFS_WORK}/etc/resolv.conf"
+    else
+        # Fallback to Google DNS
+        echo "nameserver 8.8.8.8" | maybe_sudo tee "${ROOTFS_WORK}/etc/resolv.conf" > /dev/null
+        echo "nameserver 8.8.4.4" | maybe_sudo tee -a "${ROOTFS_WORK}/etc/resolv.conf" > /dev/null
+    fi
+
     # Mount proc, sys, dev for chroot
     maybe_sudo mount -t proc /proc "${ROOTFS_WORK}/proc"
     maybe_sudo mount -t sysfs /sys "${ROOTFS_WORK}/sys"
