@@ -247,6 +247,7 @@ fi
 # Install essential packages
 apt-get install -y \$APT_OPTS \
     systemd systemd-sysv \
+    systemd-timesyncd \
     openssh-server \
     sudo \
     ca-certificates \
@@ -416,6 +417,15 @@ UseDNS=yes
 NETCONF
 fi
 systemctl enable ssh
+systemctl enable systemd-timesyncd
+
+# Configure timesyncd for NTP
+mkdir -p /etc/systemd/timesyncd.conf.d
+cat > /etc/systemd/timesyncd.conf.d/rockchip.conf << 'TIMESYNCD_CONF'
+[Time]
+NTP=0.pool.ntp.org 1.pool.ntp.org 2.pool.ntp.org 3.pool.ntp.org
+FallbackNTP=time.cloudflare.com time.google.com
+TIMESYNCD_CONF
 
 # Create first-boot Python bytecode compilation service
 cat > /etc/systemd/system/py3compile-first-boot.service << 'FIRSTBOOT_SERVICE'
