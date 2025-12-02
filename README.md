@@ -1,8 +1,8 @@
-# RK356X Buildroot Template
+# RK356X Embedded Linux Build System
 
-**A template repository for building embedded Linux images for RK356X (RK3566/RK3568) boards using Buildroot.**
+**Complete build system for RK356X (RK3566/RK3568) boards with Debian/Ubuntu, mainline U-Boot, and open-source GPU drivers.**
 
-This project provides a minimal, production-ready starting point for RK356x embedded development. It uses **Buildroot** to create complete bootable images with U-Boot, Linux kernel, and root filesystem.
+This project provides a production-ready Debian-based Linux system for RK356x ARM64 boards, featuring modern components and full desktop support with hardware acceleration.
 
 ---
 
@@ -13,427 +13,171 @@ This project provides a minimal, production-ready starting point for RK356x embe
 git clone --recursive https://github.com/aaronsb/rk356x.git
 cd rk356x
 
-# Build everything (takes ~15-60 minutes)
-./scripts/buildroot-build.sh
+# Build complete system (kernel + rootfs + image)
+./build.sh
 
-# Find your images
-ls -lh buildroot/output/images/
+# Or build components individually
+./scripts/build-kernel.sh          # Kernel 6.6 with custom DTBs
+./scripts/build-debian-rootfs.sh   # Ubuntu 24.04 rootfs
+./scripts/assemble-debian-image.sh # Create bootable SD card image
 ```
 
-**That's it!** The build script handles everything: downloading Buildroot, installing dependencies in a Docker container, and compiling the complete image.
+**Find your image:** `output/rk3568-debian-*.img.xz`
+
+**Flash to SD card:**
+```bash
+xzcat output/rk3568-debian-*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress
+```
 
 ---
 
-## 📦 What Gets Built
+## 📦 What You Get
 
 | Component | Version | Description |
 |-----------|---------|-------------|
-| **Buildroot** | 2024.08.1 | Build system |
-| **U-Boot** | 2024.07 | Bootloader with Rockchip vendor blobs |
-| **Linux Kernel** | 6.1 LTS | Mainline kernel with ARM64 default config |
-| **Init System** | systemd | Modern init with networking |
-| **Root Filesystem** | 512MB ext4 | Minimal embedded Linux with essential tools |
+| **U-Boot** | Mainline (2024.10+) | From denx.de, supports SD card and eMMC boot |
+| **Linux Kernel** | 6.6 (Rockchip BSP) | Custom DTBs, MAXIO PHY driver, display support |
+| **GPU Driver** | Panfrost (Mesa) | Open-source Mali-G52 driver with desktop OpenGL 3.1 |
+| **Root Filesystem** | Ubuntu 24.04 LTS | Debian-based with XFCE desktop and hardware acceleration |
+| **Init System** | systemd | Modern init with networking and services |
 
-**Included Packages:**
-- **Networking:** dhcpcd, dropbear (SSH), ethtool, iproute2
-- **Hardware:** i2c-tools, pciutils, usbutils
-- **Filesystem:** e2fsprogs, dosfstools
-- **Utilities:** util-linux, systemd
-
----
-
-## 🏗️ Build Approach
-
-This template uses **Docker containers** to ensure consistent, reproducible builds that match the GitHub Actions environment exactly.
-
-### Why Docker?
-
-✅ **Consistent** - Same environment locally and in CI
-✅ **Fast** - Leverage all your CPU cores (32-core builds in ~15 minutes!)
-✅ **Isolated** - No system pollution, no dependency conflicts
-✅ **Reproducible** - Builds work identically everywhere
-
-**Important:** The Docker approach matches the GitHub Actions runner environment (Ubuntu 22.04), so successful local builds will work in CI.
+**Desktop Environment:**
+- ✅ XFCE4 with hardware-accelerated rendering
+- ✅ LightDM display manager
+- ✅ Full GTK3 application support
+- ✅ Chromium browser (hardware accelerated)
+- ✅ 1920x1080 HDMI output
 
 ---
 
-## 🎨 Board Configuration
+## 🔧 Supported Boards
 
-### Current Target: RK3568 EVB (Generic)
+| Board | Status | Notes |
+|-------|--------|-------|
+| **SZ3568-V1.2** | ✅ Fully working | RGMII ethernet (MAXIO PHY), Mali-G52 GPU, HDMI 1080p |
+| **DC-A568-V06** | ⚠️ Legacy | See `boards/dc-a568-v06/` - Buildroot-based (deprecated) |
 
-This template is configured for a **generic RK3568 EVB (Evaluation Board)** using mainline device trees and U-Boot configurations. This provides broad compatibility with RK3568-based boards.
+**The build system supports multiple boards and profiles:**
+```bash
+# Build for specific board
+./scripts/build-kernel.sh rk3568_sz3568
+./scripts/build-kernel.sh rk3568_custom  # DC-A568 board
 
-**Configuration:**
-- **SoC:** RK3568 (Cortex-A55 quad-core, ARM64)
-- **U-Boot defconfig:** `evb-rk3568_defconfig`
-- **Kernel defconfig:** ARM64 default (`defconfig`)
-- **Device Tree:** `rk3568-evb1-v10.dtb`
+# Choose rootfs profile
+PROFILE=minimal ./scripts/build-debian-rootfs.sh  # Lightweight (default)
+PROFILE=full ./scripts/build-debian-rootfs.sh     # Full desktop packages
+```
 
-### Adapting for Your Board
+**Adding new boards:**
+1. Add device tree to `external/custom/board/rk3568/dts/rockchip/`
+2. Add board case to `scripts/build-kernel.sh`
+3. Create board-specific config in `boards/your-board/`
 
-The RK356x family includes many variants. To customize for your specific board:
-
-1. **Choose a device tree:**
-   ```bash
-   ls buildroot/output/build/linux-6.6.62/arch/arm64/boot/dts/rockchip/ | grep rk3568
-   ```
-   Available boards: Rock 3A, NanoPi R5S, Radxa E25, ODROID-M1, BPI-R2 Pro, etc.
-
-2. **Update defconfig:**
-   Edit `external/custom/configs/rk3568_custom_defconfig`:
-   ```
-   BR2_LINUX_KERNEL_INTREE_DTS_NAME="rockchip/rk3568-rock-3a"
-   ```
-
-3. **Rebuild:**
-   ```bash
-   ./scripts/buildroot-build.sh
-   ```
-
-**Need a different SoC?** RK3566 boards work similarly - just select the appropriate DTB and U-Boot config.
+See [README-DEBIAN-BUILD.md](README-DEBIAN-BUILD.md) for details on customization.
 
 ---
 
-## 📋 Requirements
+## 📚 Documentation
 
-- **Docker** (recommended) or native build dependencies
-- **Git** with submodule support
-- **~20GB disk space** for build artifacts
-- **Internet connection** for downloading Buildroot and source packages
-
-### System Compatibility
-
-- ✅ **Linux** (Ubuntu, Debian, Arch, Fedora, etc.)
-- ✅ **macOS** (with Docker Desktop)
-- ✅ **Windows** (WSL2 with Docker)
+- **[Debian Build System Guide](README-DEBIAN-BUILD.md)** - Complete build documentation
+- **[Project Context](CLAUDE.md)** - Technical details and configuration
+- **[Legacy Buildroot System](scripts/legacy/)** - Original build system (deprecated)
 
 ---
 
-## 🔧 Build Workflows
+## 🏗️ Build System Features
 
-This project supports three build workflows for different use cases:
+- **Docker-based builds** - Reproducible, no host dependencies
+- **Incremental builds** - Only rebuild what changed
+- **Kernel config fragments** - Easy customization without editing defconfig
+- **Custom device trees** - Full hardware support for each board
+- **Package profiles** - Minimal or full rootfs configurations
+- **APT caching** - Fast rebuilds with package cache
 
-### Workflow 1: Local Build Only
+---
 
-**Use when:** Testing changes, iterating quickly, personal use
+## 🚀 Key Technical Highlights
+
+### Mainline U-Boot
+Using mainline U-Boot (not Rockchip fork) for better SD card boot support and community maintenance.
+
+### Panfrost GPU Driver
+Switched from proprietary Mali blob to open-source Panfrost for desktop OpenGL support. This enables:
+- GTK3 desktop applications
+- Hardware-accelerated graphics
+- Standard Mesa/DRI stack compatibility
+
+### Rockchip Kernel 6.6
+Based on Rockchip's BSP kernel with mainline features and custom board support:
+- Custom device trees for each board
+- MAXIO MAE0621A Gigabit PHY driver
+- Display subsystem with HDMI support
+- Mali-G52 GPU via Panfrost
+
+### Ubuntu 24.04 Base
+Debian/Ubuntu-based rootfs provides:
+- Standard package management (apt)
+- Long-term support (LTS)
+- Large software repository
+- Easy desktop environment setup
+
+---
+
+## 🛠️ System Requirements
+
+**Host system:**
+- Linux (Ubuntu/Debian recommended)
+- Docker (for containerized builds)
+- ~40GB free disk space
+- 4GB+ RAM
+
+**Build time:** ~30-60 minutes (depending on CPU)
+
+---
+
+## 📝 Quick Build Example
 
 ```bash
-./scripts/buildroot-build.sh
+# Full automated build
+./build.sh
+
+# Or step-by-step
+./scripts/build-kernel.sh rk3568_sz3568          # ~15 min
+./scripts/build-debian-rootfs.sh                 # ~20 min
+./scripts/assemble-debian-image.sh rk3568_sz3568 # ~5 min
+
+# Flash to SD card
+xzcat output/rk3568-debian-*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress
+sync
 ```
 
-**What it does:**
-- ✅ Builds locally in Docker (fast with your cores)
-- ✅ Creates images in `buildroot/output/images/`
-- ❌ Does NOT create GitHub release
-- ❌ Does NOT push to remote
-
-**Time:** 15-60 minutes (depending on cores)
-
----
-
-### Workflow 2: Local Build + GitHub Release
-
-**Use when:** Creating official releases with local build artifacts
-
-```bash
-./scripts/local-release.sh [major|minor|patch]
-```
-
-**What it does:**
-- ✅ Builds locally in Docker
-- ✅ Bumps version number
-- ✅ Creates git tag
-- ✅ Creates GitHub release with YOUR local build artifacts
-- ✅ Permanent artifact storage
-
-**Time:** 15-60 minutes build + 1 minute upload
-
-**Example:**
-```bash
-# Create v0.1.1 with local build
-./scripts/local-release.sh patch
-
-# Create v0.2.0 with local build
-./scripts/local-release.sh minor
-```
-
----
-
-### Workflow 3: Remote Build (GitHub Actions)
-
-**Use when:** CI/CD validation, testing workflow changes, or don't have local resources
-
-```bash
-./scripts/build-remote.sh [board] [build-type]
-```
-
-**What it does:**
-- ✅ Triggers build on GitHub Actions servers
-- ✅ Uses GitHub's 4-core runners
-- ✅ Uploads artifacts (30-day retention)
-- ❌ Does NOT create release (use workflow 2 for releases)
-
-**Time:** ~60 minutes
-
-**Example:**
-```bash
-# Trigger full build on GitHub
-./scripts/build-remote.sh rk3568_jvl full-build
-
-# Watch progress in real-time
-# (script will prompt you)
-```
-
----
-
-### Quick Decision Guide
-
-| I want to... | Use |
-|--------------|-----|
-| Test my changes quickly | `./scripts/buildroot-build.sh` |
-| Create an official release | `./scripts/local-release.sh patch` |
-| Validate changes in CI | `./scripts/build-remote.sh` |
-| Leverage my 32-core CPU | `./scripts/buildroot-build.sh` or `./scripts/local-release.sh` |
-| Save local resources | `./scripts/build-remote.sh` |
-
----
-
-### Advanced: Native Build (Without Docker)
-
-If you prefer building without Docker:
-
-```bash
-# Install dependencies (Ubuntu/Debian)
-sudo apt-get install -y build-essential libssl-dev libncurses-dev \
-  bc rsync file wget cpio unzip python3 python3-pyelftools git
-
-# Initialize submodules
-git submodule update --init --recursive
-
-# Download Buildroot
-wget https://buildroot.org/downloads/buildroot-2024.08.1.tar.gz
-tar xzf buildroot-2024.08.1.tar.gz
-mv buildroot-2024.08.1 buildroot
-
-# Build
-cd buildroot
-BR2_EXTERNAL=../external/custom make rk3568_custom_defconfig
-BR2_EXTERNAL=../external/custom make -j$(nproc)
-```
-
-See [docs/dev/BUILD.md](docs/dev/BUILD.md) for detailed native build instructions.
-
----
-
-## 🚀 GitHub Actions Integration
-
-### Automatic Validation
-
-**Every push to `main` or `develop` triggers config validation** (~2 minutes):
-- ✅ Verifies defconfig loads correctly
-- ✅ Validates Buildroot configuration
-- ❌ Does NOT build full image (saves CI minutes)
-
-### Full Builds
-
-Full builds (~60 minutes) are triggered by:
-
-**Option 1: Create a release**
-```bash
-./scripts/release.sh patch  # v0.1.0 → v0.1.1
-```
-
-**Option 2: Manual workflow dispatch**
-```bash
-gh workflow run "Build RK356X Image" \
-  --field board=rk3568_jvl \
-  --field build_type=full-build
-```
-
-See [docs/dev/QUICK-REFERENCE.md](docs/dev/QUICK-REFERENCE.md) for workflow details.
-
----
-
-## 📁 Project Structure
-
-```
-rk356x/
-├── .github/workflows/       # GitHub Actions CI/CD
-│   └── build-image.yml
-├── buildroot/               # Buildroot source (gitignored)
-├── docs/                    # Documentation
-│   ├── dev/                 # Developer guides
-│   └── features/            # Feature specifications
-├── external/custom/         # Buildroot external tree (YOUR customizations)
-│   ├── configs/
-│   │   └── rk3568_custom_defconfig  # Board configuration
-│   ├── package/             # Custom packages go here
-│   ├── Config.in            # External tree config
-│   └── external.mk          # External tree makefile
-├── rkbin/                   # Vendor blobs (submodule)
-├── scripts/                 # Build automation
-│   ├── release.sh           # Remote build via GitHub Actions (creates tag)
-│   ├── local-release.sh     # Local build + GitHub release
-│   └── build-remote.sh      # Trigger remote GitHub Actions build
-└── README.md                # This file
-```
-
-### About `external/custom/`
-
-This is a **Buildroot external tree** - the place for all your customizations:
-
-**What it's for:**
-- ✅ Board-specific configurations (defconfigs)
-- ✅ Custom packages and applications
-- ✅ Patches for kernel/U-Boot
-- ✅ Root filesystem overlays
-- ✅ Custom build scripts
-
-**Why "custom"?**
-- Generic name for template usage
-- Fork this repo and add YOUR company's packages here
-- Keeps customizations separate from Buildroot core
-
-**Example customizations:**
-```
-external/custom/
-├── configs/
-│   └── rk3568_myboard_defconfig    # Your board config
-├── package/
-│   └── myapp/                      # Your application
-│       ├── Config.in
-│       ├── myapp.mk
-│       └── src/
-├── board/
-│   └── mycompany/                  # Board-specific files
-│       ├── rootfs-overlay/         # Files to copy to root
-│       └── post-build.sh          # Post-build scripts
-└── patches/
-    ├── linux/                     # Kernel patches
-    └── uboot/                     # U-Boot patches
-```
-
-See [Buildroot External Tree Documentation](https://buildroot.org/downloads/manual/manual.html#outside-br-custom) for details.
-
----
-
-## 🛠️ Customization
-
-### Modify Packages
-
-Edit `external/custom/configs/rk3568_custom_defconfig` to add/remove packages:
-
-```bash
-# Interactive menu
-cd buildroot
-BR2_EXTERNAL=../external/custom make menuconfig
-
-# Save changes
-BR2_EXTERNAL=../external/custom make savedefconfig
-cp defconfig ../external/custom/configs/rk3568_custom_defconfig
-```
-
-### Change Kernel Version
-
-Update in `rk3568_custom_defconfig`:
-```
-BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.6.62"
-```
-
-### Adjust Filesystem Size
-
-Current: 512MB. To change:
-```
-BR2_TARGET_ROOTFS_EXT2_SIZE="1024M"
-```
-
----
-
-## 🔍 Output Artifacts
-
-After a successful build, find these in `buildroot/output/images/`:
-
-| File | Size | Description |
-|------|------|-------------|
-| `Image` | ~40MB | Linux kernel binary |
-| `rk3568-evb1-v10.dtb` | ~58KB | Device tree blob |
-| `rootfs.ext4` | 512MB | Root filesystem image |
-| `rootfs.tar.gz` | ~31MB | Compressed rootfs archive |
-| `u-boot.bin` | ~820KB | U-Boot bootloader |
-| `u-boot-spl.bin` | ~121KB | U-Boot SPL |
-
-**These files are ready for flashing to SD card or eMMC.**
-
----
-
-## 🐛 Troubleshooting
-
-### Missing `rkbin` submodule
-
-**Error:** `Image 'simple-bin' is missing external blobs`
-
-**Fix:**
-```bash
-git submodule update --init --recursive
-```
-
-### Build fails in Docker
-
-**Error:** `you should not run configure as root`
-
-**Fix:** Already handled by `FORCE_UNSAFE_CONFIGURE=1` in build script
-
-### Out of disk space
-
-Buildroot needs ~20GB. Clean old builds:
-```bash
-rm -rf buildroot/output
-```
-
-See [docs/dev/BUILD.md](docs/dev/BUILD.md) for comprehensive troubleshooting.
-
----
-
-## 📖 Documentation
-
-- **[Quick Reference](docs/dev/QUICK-REFERENCE.md)** - Build cheat sheet
-- **[Build Guide](docs/dev/BUILD.md)** - Complete build instructions
-- **[GitHub Actions](docs/dev/GITHUB-ACTIONS.md)** - CI/CD workflow details
-- **[Feature Docs](docs/README.md)** - Project feature specifications
+**Default credentials:** `rock` / `rock`
 
 ---
 
 ## 🤝 Contributing
 
-This is a template repository - feel free to fork and customize for your needs!
+This is a working project for RK356x embedded development. Contributions, bug reports, and improvements are welcome!
 
-**Contributions welcome:**
-- ✨ Board-specific configurations
-- 🐛 Bug fixes and improvements
-- 📚 Documentation enhancements
-- 🧪 Testing on real hardware
-
----
-
-## 📜 License
-
-MIT License - See [LICENSE](LICENSE)
-
-Individual components have their own licenses:
-- **U-Boot:** GPL-2.0+
-- **Linux Kernel:** GPL-2.0
-- **Buildroot:** GPL-2.0+
-- **Vendor blobs (rkbin):** Proprietary (Rockchip)
+**Before contributing:**
+- Ensure builds work in Docker (reproducibility)
+- Test on actual hardware when possible
+- Update documentation for any changes
+- Keep commit messages descriptive
 
 ---
 
-## 🙏 Acknowledgments
+## 📄 License
 
-- **Buildroot project** for the excellent embedded build system
-- **Rockchip** for hardware and binary blobs
-- **Mainline kernel developers** for RK356x support
-- **U-Boot community** for bootloader support
+MIT License - See LICENSE file for details
+
+Hardware-specific blobs and firmware may have different licenses (see rkbin/ submodule).
 
 ---
 
-**Ready to build? Just run `./scripts/buildroot-build.sh` and grab a coffee!** ☕
+## 🔗 Useful Links
+
+- [Rockchip Linux Kernel](https://github.com/rockchip-linux/kernel)
+- [Mainline U-Boot](https://source.denx.de/u-boot/u-boot)
+- [Panfrost Driver](https://docs.mesa3d.org/drivers/panfrost.html)
+- [RK3568 Datasheet](https://www.rock-chips.com/uploads/pdf/2022.8.26/192/RK3568%20Brief%20Datasheet.pdf)
