@@ -131,6 +131,15 @@ build_in_docker() {
     USER_ID="${SUDO_UID:-$(id -u)}"
     GROUP_ID="${SUDO_GID:-$(id -g)}"
 
+    # Clean up any root-owned files from previous builds (before entering Docker)
+    if [ -d "${UBOOT_DIR}" ]; then
+        # Check if there are any root-owned files
+        if sudo find "${UBOOT_DIR}" -user root -print -quit 2>/dev/null | grep -q .; then
+            warn "Found root-owned files from previous builds, cleaning..."
+            sudo git -C "${UBOOT_DIR}" clean -fdx 2>/dev/null || warn "Could not clean all root-owned files"
+        fi
+    fi
+
     # Run build inside Docker
     docker run --rm \
         -v "${PROJECT_ROOT}:${PROJECT_ROOT}" \
