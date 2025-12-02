@@ -315,8 +315,8 @@ if [ "\$PROFILE" = "full" ]; then
     # Full profile: GNOME Web (Epiphany)
     apt-get install -y \$APT_OPTS epiphany-browser
 else
-    # Minimal profile: Chromium (no GNOME dependencies, good GPU support)
-    apt-get install -y \$APT_OPTS chromium-browser
+    # Minimal profile: Chromium open-source build (no snap, minimal dependencies)
+    apt-get install -y \$APT_OPTS chromium
 fi
 
 # Mali GPU support will be installed via .deb package in post-install step
