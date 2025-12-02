@@ -386,26 +386,18 @@ flash_to_sd() {
     # Flash U-Boot if built with --with-uboot
     if [ "$WITH_UBOOT" = true ]; then
         echo
-        info "Flashing custom U-Boot to $device..."
+        info "Flashing mainline U-Boot to $device..."
 
-        # Check if U-Boot artifacts exist
-        if [ -f "${OUTPUT_DIR}/uboot/idbloader.img" ] && \
-           [ -f "${OUTPUT_DIR}/uboot/uboot.img" ] && \
-           [ -f "${OUTPUT_DIR}/uboot/trust.img" ]; then
+        # Check if mainline U-Boot unified image exists
+        if [ -f "${OUTPUT_DIR}/uboot/u-boot-rockchip.bin" ]; then
 
-            # Flash U-Boot components to bootloader area
-            info "Writing idbloader.img (SPL + DDR init)..."
-            sudo dd if="${OUTPUT_DIR}/uboot/idbloader.img" of="$device" seek=64 bs=512 conv=fsync status=none
+            # Flash unified U-Boot image to bootloader area
+            info "Writing u-boot-rockchip.bin (unified: TPL+SPL+ATF+U-Boot)..."
+            sudo dd if="${OUTPUT_DIR}/uboot/u-boot-rockchip.bin" of="$device" seek=64 bs=512 conv=fsync status=none
 
-            info "Writing uboot.img (U-Boot proper)..."
-            sudo dd if="${OUTPUT_DIR}/uboot/uboot.img" of="$device" seek=16384 bs=512 conv=fsync status=none
-
-            info "Writing trust.img (ATF)..."
-            sudo dd if="${OUTPUT_DIR}/uboot/trust.img" of="$device" seek=24576 bs=512 conv=fsync status=none
-
-            log "✓ Custom U-Boot flashed to $device"
+            log "✓ Mainline U-Boot flashed to $device (sector 64)"
         else
-            warn "U-Boot artifacts not found in ${OUTPUT_DIR}/uboot/"
+            warn "U-Boot binary not found: ${OUTPUT_DIR}/uboot/u-boot-rockchip.bin"
             warn "Skipping U-Boot flash - using existing bootloader on device"
         fi
     fi
@@ -729,16 +721,14 @@ stage_rootfs() {
 }
 
 check_uboot_artifacts() {
-    if [ -f "${OUTPUT_DIR}/uboot/idbloader.img" ] && \
-       [ -f "${OUTPUT_DIR}/uboot/uboot.img" ] && \
-       [ -f "${OUTPUT_DIR}/uboot/trust.img" ]; then
-        local size=$(du -h "${OUTPUT_DIR}/uboot/uboot.img" | cut -f1)
-        local date=$(stat -c %y "${OUTPUT_DIR}/uboot/uboot.img" | cut -d' ' -f1,2 | cut -d'.' -f1)
+    if [ -f "${OUTPUT_DIR}/uboot/u-boot-rockchip.bin" ]; then
+        local size=$(du -h "${OUTPUT_DIR}/uboot/u-boot-rockchip.bin" | cut -f1)
+        local date=$(stat -c %y "${OUTPUT_DIR}/uboot/u-boot-rockchip.bin" | cut -d' ' -f1,2 | cut -d'.' -f1)
 
         echo "FOUND"
-        echo "  U-Boot: uboot.img ($size)"
+        echo "  U-Boot: u-boot-rockchip.bin ($size)"
         echo "  Date:   $date"
-        echo "  Files:  idbloader.img, uboot.img, trust.img"
+        echo "  Type:   Mainline unified image (TPL+SPL+ATF+U-Boot)"
         return 0
     else
         echo "NOT_FOUND"

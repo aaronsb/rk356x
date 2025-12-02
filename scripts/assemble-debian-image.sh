@@ -280,27 +280,22 @@ flash_bootloader() {
 
     local uboot_dir="${OUTPUT_DIR}/uboot"
 
-    if [ ! -f "${uboot_dir}/idbloader.img" ] || [ ! -f "${uboot_dir}/uboot.img" ] || [ ! -f "${uboot_dir}/trust.img" ]; then
-        error "U-Boot binaries not found. Run: ./scripts/build-uboot.sh"
+    # Mainline U-Boot creates a unified u-boot-rockchip.bin image
+    if [ ! -f "${uboot_dir}/u-boot-rockchip.bin" ]; then
+        error "U-Boot binary not found: ${uboot_dir}/u-boot-rockchip.bin
+Run: ./scripts/build-uboot.sh ${BOARD}"
     fi
 
-    warn "⚠️  Flashing U-Boot - this can brick your board if interrupted!"
-    warn "   Make sure you have a backup board before proceeding"
+    warn "⚠️  Flashing mainline U-Boot - this can brick your board if interrupted!"
+    warn "   Make sure you have maskrom recovery available"
     sleep 2
 
-    log "Writing idbloader.img at sector 64..."
-    dd if="${uboot_dir}/idbloader.img" of="${IMAGE_FILE}" \
+    log "Writing u-boot-rockchip.bin at sector 64..."
+    log "  (Unified image contains: TPL, SPL, ATF, U-Boot proper)"
+    dd if="${uboot_dir}/u-boot-rockchip.bin" of="${IMAGE_FILE}" \
         seek=64 conv=notrunc,fsync status=none
 
-    log "Writing uboot.img at sector 16384..."
-    dd if="${uboot_dir}/uboot.img" of="${IMAGE_FILE}" \
-        seek=16384 conv=notrunc,fsync status=none
-
-    log "Writing trust.img at sector 24576..."
-    dd if="${uboot_dir}/trust.img" of="${IMAGE_FILE}" \
-        seek=24576 conv=notrunc,fsync status=none
-
-    log "✓ Bootloader flashed"
+    log "✓ Mainline U-Boot flashed (unified image at sector 64)"
 }
 
 setup_loop_device() {
