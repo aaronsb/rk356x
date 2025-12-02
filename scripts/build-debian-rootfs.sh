@@ -190,6 +190,35 @@ export DEB_PYTHON_INSTALL_LAYOUT=deb_system
 # Update package lists
 apt-get update
 
+# Add Debian bookworm repository for chromium (Ubuntu 24.04 only has snap stub)
+# Use lower priority (100) so Ubuntu packages are preferred by default
+cat > /etc/apt/sources.list.d/debian-chromium.list << 'DEBIAN_SOURCES'
+# Debian bookworm for chromium browser (real .deb package, not snap)
+deb [arch=arm64] http://deb.debian.org/debian bookworm main
+deb [arch=arm64] http://deb.debian.org/debian-security bookworm-security main
+DEBIAN_SOURCES
+
+# Set lower priority for Debian repos (Ubuntu packages preferred by default)
+cat > /etc/apt/preferences.d/debian-chromium << 'DEBIAN_PREFS'
+# Prefer Ubuntu packages by default
+Package: *
+Pin: release o=Ubuntu
+Pin-Priority: 500
+
+# Only use Debian for chromium and dependencies
+Package: chromium chromium-common chromium-driver chromium-sandbox
+Pin: release o=Debian
+Pin-Priority: 600
+
+# Lower priority for all other Debian packages
+Package: *
+Pin: release o=Debian
+Pin-Priority: 100
+DEBIAN_PREFS
+
+# Update with Debian repos included
+apt-get update
+
 # Use dpkg-divert to permanently redirect py3compile to our stub
 # This prevents any package from installing the real py3compile
 # Bytecode will be generated on first import when running on real ARM hardware
@@ -280,6 +309,7 @@ else
         xfce4-panel \
         xfce4-settings \
         xfce4-terminal \
+        thunar \
         xserver-xorg-core \
         xserver-xorg-input-libinput \
         xserver-xorg-video-fbdev \
@@ -312,15 +342,17 @@ fi
 
 # Install browser
 if [ "\$PROFILE" = "full" ]; then
-    # Full profile: GNOME Web (Epiphany)
-    apt-get install -y \$APT_OPTS epiphany-browser
+    # Full profile: GNOME Web (Epiphany) and Chromium
+    apt-get install -y \$APT_OPTS epiphany-browser chromium
 else
-    # Minimal profile: Chromium open-source build (no snap, minimal dependencies)
+    # Minimal profile: Chromium from Debian (real .deb, not Ubuntu's snap stub)
+    # Chromium provides hardware-accelerated rendering via OpenGL
     apt-get install -y \$APT_OPTS chromium
 fi
 
-# Mali GPU support will be installed via .deb package in post-install step
-echo "Mali GPU package will be installed separately"
+# GPU support: Using open-source Panfrost driver (built into kernel)
+# No proprietary Mali packages needed - Panfrost provides desktop OpenGL via Mesa
+echo "GPU: Panfrost driver enabled in kernel (open-source Mesa)"
 
 # Install utilities
 if [ "\$PROFILE" = "full" ]; then
