@@ -2,7 +2,7 @@
 set -e
 
 # Rockchip Kernel Build Script
-# Builds kernel 6.6 with custom DTBs and creates .deb packages
+# Builds mainline kernel 6.12 LTS with custom DTBs and creates .deb packages
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -36,13 +36,13 @@ if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
 fi
 
 # Configuration
-KERNEL_VERSION="6.1"
-KERNEL_BRANCH="develop-6.1"
-KERNEL_REPO="https://github.com/rockchip-linux/kernel.git"
+KERNEL_VERSION="6.12"
+KERNEL_BRANCH="v6.12"
+KERNEL_REPO="https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git"
 KERNEL_DIR="${PROJECT_ROOT}/kernel-${KERNEL_VERSION}"
 
 BOARD="${1:-rk3568_sz3568}"
-DEFCONFIG="rockchip_linux_defconfig"
+DEFCONFIG="defconfig"  # Mainline uses generic defconfig, then we customize
 CORES=$(nproc)
 
 # Board-specific DTB
