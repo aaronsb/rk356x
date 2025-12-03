@@ -192,7 +192,8 @@ case "${BOARD}" in
 esac
 
 # Configuration
-KERNEL_VERSION="6.1"
+# NOTE: This should match KERNEL_VERSION in scripts/build-kernel.sh
+KERNEL_VERSION="6.12"
 
 # Paths
 KERNEL_DEBS_DIR="${PROJECT_ROOT}/output/kernel-debs"
@@ -683,7 +684,7 @@ stage_kernel() {
 
 stage_rootfs() {
     local profile="${PROFILE:-minimal}"
-    header "Stage 2: Rootfs Build (Ubuntu 24.04 + XFCE)"
+    header "Stage 2: Rootfs Build (Debian 12 + XFCE)"
 
     info "Profile:  ${profile}"
     if [ "$profile" = "full" ]; then
@@ -977,14 +978,12 @@ stage_write_device() {
 
 show_banner() {
     echo -e "${BOLD}${BLUE}"
-    cat << "EOF"
-╔═══════════════════════════════════════════════════════════════╗
-║                                                               ║
-║     Debian Build System for Rockchip RK3568                   ║
-║     Kernel 6.1 LTS + Debian 12 + XFCE Desktop                 ║
-║                                                               ║
-╚═══════════════════════════════════════════════════════════════╝
-EOF
+    echo "╔═══════════════════════════════════════════════════════════════╗"
+    echo "║                                                               ║"
+    echo "║     Debian Build System for Rockchip RK3568                   ║"
+    printf "║     Kernel %-4s LTS + Debian 12 + XFCE Desktop             ║\n" "${KERNEL_VERSION}"
+    echo "║                                                               ║"
+    echo "╚═══════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
 
     info "Board: ${BOARD_DESC}"
