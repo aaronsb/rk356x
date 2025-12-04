@@ -116,13 +116,19 @@ clone_kernel() {
             "${KERNEL_REPO}" "${KERNEL_DIR}"
     else
         log "Kernel already cloned"
-        read -p "Update kernel source? (y/N) " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            cd "${KERNEL_DIR}"
-            git fetch origin "${KERNEL_BRANCH}"
-            git reset --hard "origin/${KERNEL_BRANCH}"
-            cd "${PROJECT_ROOT}"
+
+        # Skip update prompt if running non-interactively (in Docker or background)
+        if [ -t 0 ]; then
+            read -p "Update kernel source? (y/N) " -n 1 -r
+            echo
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                cd "${KERNEL_DIR}"
+                git fetch origin "${KERNEL_BRANCH}"
+                git reset --hard "origin/${KERNEL_BRANCH}"
+                cd "${PROJECT_ROOT}"
+            fi
+        else
+            log "Non-interactive mode: skipping update (using existing kernel source)"
         fi
     fi
 }
