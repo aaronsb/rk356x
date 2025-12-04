@@ -584,35 +584,44 @@ clean_artifacts() {
         cleaned=true
     fi
 
-    # Clean Docker image (forces rebuild with latest code)
+    # Clean Docker resources aggressively
     if command -v docker &>/dev/null; then
-        if docker image inspect rk3568-debian-builder:latest &>/dev/null 2>&1; then
-            info "Removing Docker build image (will rebuild with latest code)..."
-            docker rmi -f rk3568-debian-builder:latest || true
+        echo
+        info "Cleaning Docker resources..."
+
+        # Stop and remove any running rk3568 containers
+        local running=$(docker ps --filter "ancestor=rk3568-debian-builder" --format "{{.ID}}" 2>/dev/null)
+        if [ -n "$running" ]; then
+            info "Stopping running rk3568 containers..."
+            echo "$running" | xargs -r docker stop 2>/dev/null || true
+            echo "$running" | xargs -r docker rm -f 2>/dev/null || true
             cleaned=true
         fi
 
-        # Check Docker environment health
-        echo
-        info "Checking Docker environment..."
-
-        # Check for orphaned rk3568 containers
-        local orphaned=$(docker ps -a --filter "ancestor=rk3568-debian-builder" --format "{{.ID}}" 2>/dev/null | wc -l)
-        if [ "$orphaned" -gt 0 ]; then
-            warn "Found ${orphaned} orphaned rk3568 container(s)"
-            info "Remove with: docker ps -a | grep rk3568 | awk '{print \$1}' | xargs docker rm -f"
+        # Remove all stopped rk3568 containers
+        local stopped=$(docker ps -a --filter "ancestor=rk3568-debian-builder" --format "{{.ID}}" 2>/dev/null)
+        if [ -n "$stopped" ]; then
+            info "Removing ${stopped} orphaned rk3568 container(s)..."
+            echo "$stopped" | xargs -r docker rm -f 2>/dev/null || true
+            cleaned=true
         fi
 
-        # Check Docker build cache size
-        local cache_size=$(docker system df --format "{{.BuildCache}}" 2>/dev/null | grep -oE '[0-9.]+GB' | head -1)
-        if [ -n "$cache_size" ]; then
-            local cache_num=$(echo "$cache_size" | grep -oE '[0-9.]+')
-            if (( $(echo "$cache_num > 5.0" | bc -l 2>/dev/null || echo 0) )); then
-                warn "Docker build cache is large: ${cache_size}"
-                info "This may cause stale builds. Clear with: docker builder prune -af"
-                info "(Warning: This affects ALL Docker projects, not just rk3568)"
-            fi
+        # Remove rk3568-debian-builder image
+        if docker image inspect rk3568-debian-builder:latest &>/dev/null 2>&1; then
+            info "Removing Docker build image (will rebuild with latest code)..."
+            docker rmi -f rk3568-debian-builder:latest 2>/dev/null || true
+            cleaned=true
         fi
+
+        # Prune dangling images
+        info "Pruning dangling Docker images..."
+        docker image prune -f 2>/dev/null || true
+
+        # Prune build cache for rk3568 builds
+        info "Pruning Docker build cache..."
+        docker builder prune -f 2>/dev/null || true
+
+        log "Docker cleanup complete"
     fi
 
     if [ "$cleaned" = true ]; then
