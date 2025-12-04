@@ -7,6 +7,17 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 
+# Cleanup function for git lock files (created by interrupted Docker git operations)
+cleanup_git_locks() {
+    rm -f "${PROJECT_ROOT}/.git/index.lock" 2>/dev/null || true
+}
+
+# Set up trap to clean locks on exit/interrupt
+trap cleanup_git_locks EXIT INT TERM
+
+# Clean any existing locks from previous interrupted runs
+cleanup_git_locks
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
