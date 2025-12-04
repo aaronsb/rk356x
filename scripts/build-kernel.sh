@@ -123,7 +123,12 @@ clone_kernel() {
             echo
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 cd "${KERNEL_DIR}"
+                log "Cleaning kernel repo state..."
+                git clean -fdx 2>/dev/null || true
+                git reset --hard 2>/dev/null || true
+                log "Fetching latest kernel..."
                 git fetch origin "${KERNEL_BRANCH}"
+                git checkout "${KERNEL_BRANCH}" 2>/dev/null || git checkout -b "${KERNEL_BRANCH}" "origin/${KERNEL_BRANCH}"
                 git reset --hard "origin/${KERNEL_BRANCH}"
                 cd "${PROJECT_ROOT}"
             fi
