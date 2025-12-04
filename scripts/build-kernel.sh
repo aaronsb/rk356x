@@ -23,7 +23,7 @@ if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
         GROUP_ID="${SUDO_GID:-$(id -g)}"
 
         echo "==> Running build in Docker container..."
-        exec docker run --rm -it \
+        exec docker run --rm -t \
             -v "${PROJECT_ROOT}:/work" \
             -e CONTAINER=1 \
             -w /work \
@@ -163,7 +163,19 @@ copy_custom_files() {
             cp -v "${PROJECT_ROOT}"/external/custom/board/rk3568/dts/rockchip/*.dtsi \
                 "${KERNEL_DIR}/arch/arm64/boot/dts/rockchip/"
         fi
+    else
+        warn "No custom DTBs found in external/custom/board/rk3568/dts/rockchip"
+    fi
 
+    # Copy vendor dt-bindings headers (for mainline kernel compatibility)
+    if [ -d "${PROJECT_ROOT}/external/custom/board/rk3568/dt-bindings" ]; then
+        log "Copying vendor dt-bindings headers..."
+        cp -rv "${PROJECT_ROOT}"/external/custom/board/rk3568/dt-bindings/* \
+            "${KERNEL_DIR}/include/dt-bindings/"
+    fi
+
+    # Continue with DTB Makefile additions
+    if [ -d "${PROJECT_ROOT}/external/custom/board/rk3568/dts/rockchip" ]; then
         # Add custom DTBs to Makefile so they get compiled
         log "Adding custom DTBs to Makefile..."
         local makefile_path="${KERNEL_DIR}/arch/arm64/boot/dts/rockchip/Makefile"
@@ -188,8 +200,6 @@ copy_custom_files() {
                 fi
             fi
         done
-    else
-        warn "No custom DTBs found in external/custom/board/rk3568/dts/rockchip"
     fi
 
     # Copy custom PHY drivers
