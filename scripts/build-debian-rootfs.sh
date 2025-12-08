@@ -315,6 +315,7 @@ fi
 # Install graphics and multimedia
 apt-get install -y \$APT_OPTS \
     libdrm2 \
+    libdrm-tests \
     mesa-utils \
     libgles2 \
     libegl1 \
@@ -322,7 +323,9 @@ apt-get install -y \$APT_OPTS \
     libx11-6 \
     libxcb1 \
     libxcb-dri2-0 \
-    libxcb-dri3-0
+    libxcb-dri3-0 \
+    weston \
+    glmark2-es2-drm
 
 if [ "\$PROFILE" = "full" ]; then
     # Full profile: add GStreamer for media playback
@@ -372,7 +375,9 @@ else
         htop \
         ethtool \
         rsync \
-        parted
+        parted \
+        u-boot-tools \
+        i2c-tools
 fi
 
 # Create user
