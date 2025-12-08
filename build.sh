@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+set -o pipefail
 
 # Debian Build System Orchestrator for RK3568
 # Interactive build workflow with artifact detection
@@ -218,7 +219,11 @@ OUTPUT_DIR="${PROJECT_ROOT}/output"
 check_kernel_artifacts() {
     local image_deb=$(ls -1t "${KERNEL_DEBS_DIR}"/linux-image-*.deb 2>/dev/null | head -1)
     local headers_deb=$(ls -1t "${KERNEL_DEBS_DIR}"/linux-headers-*.deb 2>/dev/null | head -1)
+    local kernel_dir="${PROJECT_ROOT}/kernel-${KERNEL_VERSION:-6.12}"
+    local raw_image="${kernel_dir}/arch/arm64/boot/Image"
+    local raw_dtb="${kernel_dir}/arch/arm64/boot/dts/rockchip/${DTB_NAME}.dtb"
 
+    # Check for .deb packages (preferred - ready to install)
     if [ -n "$image_deb" ] && [ -f "$image_deb" ]; then
         local size=$(du -h "$image_deb" | cut -f1)
         local date=$(stat -c %y "$image_deb" | cut -d' ' -f1,2 | cut -d'.' -f1)
@@ -234,6 +239,18 @@ check_kernel_artifacts() {
             local hdr_size=$(du -h "$headers_deb" | cut -f1)
             echo "  Headers: $(basename "$headers_deb") ($hdr_size)"
         fi
+        return 0
+    # Check for raw kernel build (compiled but not packaged)
+    elif [ -f "$raw_image" ] && [ -f "$raw_dtb" ]; then
+        local size=$(du -h "$raw_image" | cut -f1)
+        local date=$(stat -c %y "$raw_image" | cut -d' ' -f1,2 | cut -d'.' -f1)
+
+        echo "FOUND_RAW"
+        echo "  Image:   kernel-${KERNEL_VERSION:-6.12}/arch/arm64/boot/Image"
+        echo "  Size:    $size"
+        echo "  Date:    $date"
+        echo "  DTB:     ${DTB_NAME}.dtb"
+        echo "  Status:  Compiled but not packaged (re-run kernel build to create .debs)"
         return 0
     else
         echo "NOT_FOUND"
@@ -537,12 +554,14 @@ clean_artifacts() {
         fi
     fi
 
-    # Clean kernel source
-    if [ -d "${PROJECT_ROOT}/kernel-6.6" ]; then
-        info "Removing kernel source directory..."
-        rm -rf "${PROJECT_ROOT}/kernel-6.6"
-        cleaned=true
-    fi
+    # Clean kernel source (any version)
+    for kernel_dir in "${PROJECT_ROOT}"/kernel-*; do
+        if [ -d "$kernel_dir" ]; then
+            info "Removing kernel source directory: $(basename "$kernel_dir")"
+            rm -rf "$kernel_dir"
+            cleaned=true
+        fi
+    done
 
     # Clean intermediate build files (might be root-owned)
     if ls "${PROJECT_ROOT}"/linux-*.deb "${PROJECT_ROOT}"/linux-*.changes "${PROJECT_ROOT}"/linux-*.buildinfo &>/dev/null; then
@@ -674,6 +693,20 @@ stage_kernel() {
             log "Skipping kernel build (using existing artifacts)"
             return 0
         fi
+    elif echo "$status" | grep -q "^FOUND_RAW$"; then
+        echo -e "${YELLOW}${ICON_WARN} Kernel compiled but not packaged:${NC}"
+        echo "$status" | grep -v "FOUND_RAW" || true
+        echo
+
+        # Auto mode: re-run build to create packages
+        if [ "$AUTO_MODE" = true ]; then
+            info "Auto mode: creating kernel packages..."
+        elif [ "$NON_INTERACTIVE" = false ]; then
+            local answer=$(ask_yes_no "Create kernel packages now?" "y")
+            if [[ ! $answer =~ ^[Yy]$ ]]; then
+                error "Kernel packages are required for image assembly"
+            fi
+        fi
     else
         warn "No kernel artifacts found"
         echo
@@ -695,7 +728,7 @@ stage_kernel() {
     local phase_log="${BUILD_LOG_PREFIX}-kernel.log"
     info "Kernel log: ${phase_log}"
 
-    if ! "${PROJECT_ROOT}/scripts/build-kernel.sh" "${BOARD}" 2>&1 | tee "${phase_log}"; then
+    if ! SKIP_KERNEL_UPDATE=1 "${PROJECT_ROOT}/scripts/build-kernel.sh" "${BOARD}" 2>&1 | tee "${phase_log}"; then
         error "Kernel build failed! Check log: ${phase_log}"
     fi
 
@@ -854,7 +887,9 @@ stage_image() {
     local kernel_status=$(check_kernel_artifacts)
     local rootfs_status=$(check_rootfs_artifact)
 
-    if ! echo "$kernel_status" | grep -q "^FOUND$"; then
+    if echo "$kernel_status" | grep -q "^FOUND_RAW$"; then
+        error "Kernel compiled but not packaged! Run: ./scripts/build-kernel.sh ${BOARD}"
+    elif ! echo "$kernel_status" | grep -q "^FOUND$"; then
         error "Kernel artifacts not found! Run kernel build first."
     fi
 
@@ -1030,6 +1065,8 @@ show_summary() {
     local kernel_status=$(check_kernel_artifacts)
     if echo "$kernel_status" | grep -q "^FOUND$"; then
         echo "$kernel_status" | grep -v "FOUND" || true
+    elif echo "$kernel_status" | grep -q "^FOUND_RAW$"; then
+        echo "$kernel_status" | grep -v "FOUND_RAW" || true
     else
         echo "   ${RED}Not found${NC}"
     fi
