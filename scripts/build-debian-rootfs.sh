@@ -642,7 +642,7 @@ apply_rootfs_overlay() {
     # Apply common overlay first
     if [ -d "$overlay_dir" ]; then
         log "Applying common rootfs overlay from ${overlay_dir}..."
-        maybe_sudo cp -a "${overlay_dir}"/* "${ROOTFS_WORK}/" || {
+        maybe_sudo cp -a --no-preserve=ownership "${overlay_dir}"/* "${ROOTFS_WORK}/" || {
             warn "Failed to copy some common overlay files"
         }
         log "✓ Common rootfs overlay applied"
@@ -653,7 +653,7 @@ apply_rootfs_overlay() {
     # Apply board-specific overlay (can override common files)
     if [ -d "$board_overlay_dir" ]; then
         log "Applying board-specific rootfs overlay from ${board_overlay_dir}..."
-        maybe_sudo cp -a "${board_overlay_dir}"/* "${ROOTFS_WORK}/" || {
+        maybe_sudo cp -a --no-preserve=ownership "${board_overlay_dir}"/* "${ROOTFS_WORK}/" || {
             warn "Failed to copy some board-specific overlay files"
         }
 
@@ -718,6 +718,59 @@ CHROOT_EOF
     log "✓ Mali GPU installed: libmali-bifrost-g52-g13p0"
 }
 
+install_panfrost_mesa() {
+    log "Installing Mesa with Panfrost driver (open-source Mali GPU support)..."
+
+    # Debian Bookworm includes Panfrost in standard Mesa packages
+    # No PPA needed - just install from official Debian repos!
+
+    maybe_sudo cp /usr/bin/qemu-aarch64-static "${ROOTFS_WORK}/usr/bin/" || true
+
+    if [ "$QUIET_MODE" = "true" ]; then
+        echo -e "${YELLOW}▸${NC} Installing Mesa with Panfrost support"
+        maybe_sudo chroot "${ROOTFS_WORK}" /bin/bash > /dev/null 2>&1 << 'CHROOT_EOF'
+set -e
+export DEBIAN_FRONTEND=noninteractive
+
+# Install Mesa with Panfrost from standard Debian repos
+apt-get update
+apt-get install -y --no-install-recommends \
+    mesa-vulkan-drivers \
+    libegl-mesa0 \
+    libgl1-mesa-dri \
+    libgles2-mesa \
+    libglx-mesa0 \
+    mesa-va-drivers \
+    mesa-utils
+
+# Verify Panfrost is available
+dpkg -l | grep mesa
+CHROOT_EOF
+    else
+        maybe_sudo chroot "${ROOTFS_WORK}" /bin/bash << 'CHROOT_EOF'
+set -e
+export DEBIAN_FRONTEND=noninteractive
+
+echo "Installing Mesa with Panfrost support..."
+apt-get update
+apt-get install -y --no-install-recommends \
+    mesa-vulkan-drivers \
+    libegl-mesa0 \
+    libgl1-mesa-dri \
+    libgles2-mesa \
+    libglx-mesa0 \
+    mesa-va-drivers \
+    mesa-utils
+
+echo "Verifying Mesa installation..."
+dpkg -l | grep mesa
+echo "Mesa with Panfrost installed successfully!"
+CHROOT_EOF
+    fi
+
+    log "✓ Mesa with Panfrost installed (Debian Bookworm standard packages)"
+}
+
 create_image() {
     log "Creating rootfs image..."
 
@@ -742,13 +795,39 @@ create_image() {
     local mount_point="${ROOTFS_DIR}/mnt"
     mkdir -p "${mount_point}"
 
-    # Mount using -o loop (handles loop device automatically)
-    maybe_sudo mount -o loop "${ROOTFS_IMAGE}" "${mount_point}"
+    # Ensure loop devices are available (needed in Docker even with --privileged)
+    if [ ! -e /dev/loop-control ]; then
+        warn "Loop device control not available, attempting to create..."
+        maybe_sudo mknod /dev/loop-control c 10 237 2>/dev/null || true
+    fi
+
+    # Create loop devices if they don't exist (Docker may not have them)
+    for i in $(seq 0 7); do
+        if [ ! -e /dev/loop$i ]; then
+            maybe_sudo mknod /dev/loop$i b 7 $i 2>/dev/null || true
+        fi
+    done
+
+    # Load loop module if not loaded (may not be needed on most systems)
+    maybe_sudo modprobe loop 2>/dev/null || true
+
+    # Use losetup explicitly for better error handling
+    local loop_dev
+    loop_dev=$(maybe_sudo losetup --find --show "${ROOTFS_IMAGE}") || {
+        error "Failed to setup loop device. If running in Docker, ensure --privileged is set."
+    }
+    log "Using loop device: ${loop_dev}"
+
+    # Mount the loop device
+    maybe_sudo mount "${loop_dev}" "${mount_point}"
 
     [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Copying rootfs to image"
     maybe_sudo cp -a "${ROOTFS_WORK}"/* "${mount_point}/"
 
     maybe_sudo umount "${mount_point}"
+
+    # Detach loop device
+    maybe_sudo losetup -d "${loop_dev}" 2>/dev/null || true
 
     # Optimize
     if [ "$QUIET_MODE" = "true" ]; then
@@ -795,7 +874,8 @@ main() {
     customize_rootfs
     install_setup_emmc
     apply_rootfs_overlay
-    install_mali_gpu
+    # install_mali_gpu  # DISABLED: Conflicts with Panfrost - using stock Mesa instead
+    install_panfrost_mesa  # Install Mesa with Panfrost for open-source GPU support
     create_image
     cleanup
 

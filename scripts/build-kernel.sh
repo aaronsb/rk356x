@@ -38,9 +38,16 @@ if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
         GROUP_ID="${SUDO_GID:-$(id -g)}"
 
         echo "==> Running build in Docker container..."
-        exec docker run --rm -t \
+        # Use -it for interactive mode if stdin is a terminal, otherwise -t only
+        # Also pass SKIP_KERNEL_UPDATE=1 since Docker stdin may not work properly
+        DOCKER_TTY_FLAGS="-t"
+        if [ -t 0 ]; then
+            DOCKER_TTY_FLAGS="-it"
+        fi
+        exec docker run --rm ${DOCKER_TTY_FLAGS} \
             -v "${PROJECT_ROOT}:/work" \
             -e CONTAINER=1 \
+            -e SKIP_KERNEL_UPDATE="${SKIP_KERNEL_UPDATE:-0}" \
             -w /work \
             -u "${USER_ID}:${GROUP_ID}" \
             "${DOCKER_IMAGE}:latest" \
@@ -132,9 +139,12 @@ clone_kernel() {
     else
         log "Kernel already cloned"
 
-        # Skip update prompt if running non-interactively (in Docker or background)
-        if [ -t 0 ]; then
-            read -p "Update kernel source? (y/N) " -n 1 -r
+        # Skip update prompt if SKIP_KERNEL_UPDATE is set, running non-interactively,
+        # or if stdin is not a real terminal (Docker without -i flag)
+        if [ "${SKIP_KERNEL_UPDATE}" = "1" ] || [ ! -t 0 ] || [ -n "$CONTAINER" ]; then
+            log "Skipping kernel update (using existing source)"
+        else
+            read -t 10 -p "Update kernel source? (y/N) " -n 1 -r || REPLY="n"
             echo
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 cd "${KERNEL_DIR}"
@@ -147,8 +157,6 @@ clone_kernel() {
                 git reset --hard "origin/${KERNEL_BRANCH}"
                 cd "${PROJECT_ROOT}"
             fi
-        else
-            log "Non-interactive mode: skipping update (using existing kernel source)"
         fi
     fi
 }
@@ -341,8 +349,10 @@ build_deb_packages() {
     log "Package version: ${pkg_version}"
 
     # Build deb packages (creates in parent directory)
+    # Use DPKG_FLAGS=-d to skip dependency checks (cross-compiling arm64 on x86_64)
     [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Building .deb packages"
     KDEB_PKGVERSION="${pkg_version}" \
+    DPKG_FLAGS="-d" \
     quiet_run make -j"${CORES}" ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
         bindeb-pkg || error "Package build failed"
 
