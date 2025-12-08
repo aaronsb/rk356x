@@ -430,6 +430,21 @@
 	status = "okay";
 };
 
+/* Combo PHY for USB3 */
+&combphy0 {
+	status = "okay";
+};
+
+&combphy1 {
+	status = "okay";
+};
+
+/* USB 3.0 Host (xHCI) */
+&usb_host0_xhci {
+	extcon = <&usb2phy0>;
+	status = "okay";
+};
+
 /* USB 2.0 Host */
 &usb_host0_ehci {
 	status = "okay";
