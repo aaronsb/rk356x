@@ -1,0 +1,18 @@
+#!/bin/bash
+# Reset USB2 PHY for OTG port to fix hotplug detection
+# The charger detection (DCP) on the USB2 PHY can interfere with
+# proper USB device connect/disconnect detection. Resetting the
+# PHY after boot clears this state.
+
+PHY_DRIVER="/sys/bus/platform/drivers/rockchip-usb2phy"
+OTG_PHY="fe8a0000.usb2phy"
+
+if [ -d "$PHY_DRIVER/$OTG_PHY" ]; then
+    echo "Resetting USB2 PHY ($OTG_PHY) for OTG port hotplug fix..."
+    echo "$OTG_PHY" > "$PHY_DRIVER/unbind" 2>/dev/null
+    sleep 0.5
+    echo "$OTG_PHY" > "$PHY_DRIVER/bind" 2>/dev/null
+    echo "USB2 PHY reset complete"
+else
+    echo "USB2 PHY device not found, skipping reset"
+fi

@@ -17,8 +17,8 @@ cd rk356x
 ./build.sh
 
 # Or build components individually
-./scripts/build-kernel.sh          # Kernel 6.6 with custom DTBs
-./scripts/build-debian-rootfs.sh   # Ubuntu 24.04 rootfs
+./scripts/build-kernel.sh          # Kernel 6.1 with custom DTBs
+./scripts/build-debian-rootfs.sh   # Debian 12 rootfs
 ./scripts/assemble-debian-image.sh # Create bootable SD card image
 ```
 
@@ -36,9 +36,9 @@ xzcat output/rk3568-debian-*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress
 | Component | Version | Description |
 |-----------|---------|-------------|
 | **U-Boot** | Mainline (2024.10+) | From denx.de, supports SD card and eMMC boot |
-| **Linux Kernel** | 6.6 (Rockchip BSP) | Custom DTBs, MAXIO PHY driver, display support |
+| **Linux Kernel** | 6.1 LTS (Rockchip BSP) | Custom DTBs, MAXIO PHY driver, display support, Panfrost GPU |
 | **GPU Driver** | Panfrost (Mesa) | Open-source Mali-G52 driver with desktop OpenGL 3.1 |
-| **Root Filesystem** | Ubuntu 24.04 LTS | Debian-based with XFCE desktop and hardware acceleration |
+| **Root Filesystem** | Debian 12 (bookworm) | Pure Debian with XFCE desktop, chromium, and kernel 6.1 |
 | **Init System** | systemd | Modern init with networking and services |
 
 **Desktop Environment:**
@@ -107,19 +107,22 @@ Switched from proprietary Mali blob to open-source Panfrost for desktop OpenGL s
 - Hardware-accelerated graphics
 - Standard Mesa/DRI stack compatibility
 
-### Rockchip Kernel 6.6
-Based on Rockchip's BSP kernel with mainline features and custom board support:
+### Rockchip Kernel 6.1 LTS
+Based on Rockchip's BSP kernel (LTS until Dec 2026) with proven Panfrost support:
 - Custom device trees for each board
 - MAXIO MAE0621A Gigabit PHY driver
 - Display subsystem with HDMI support
-- Mali-G52 GPU via Panfrost
+- Mali-G52 GPU via open-source Panfrost driver
+- Hardware-accelerated OpenGL 3.1 for desktop applications
 
-### Ubuntu 24.04 Base
-Debian/Ubuntu-based rootfs provides:
+### Debian 12 (bookworm)
+Pure Debian rootfs provides:
+- Perfect kernel match (Debian 12 ships with kernel 6.1)
 - Standard package management (apt)
-- Long-term support (LTS)
-- Large software repository
+- Long-term support (LTS until June 2028)
+- Large software repository with native chromium
 - Easy desktop environment setup
+- No repository mixing required
 
 ---
 

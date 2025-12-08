@@ -72,7 +72,7 @@ UBOOT_DIR="${PROJECT_ROOT}/u-boot-mainline"
 RKBIN_DIR="${PROJECT_ROOT}/rkbin"
 OUTPUT_DIR="${PROJECT_ROOT}/output"
 UBOOT_REPO="https://source.denx.de/u-boot/u-boot.git"
-UBOOT_BRANCH="master"  # Mainline U-Boot with better SD card support
+UBOOT_BRANCH="master"  # Mainline U-Boot with custom patches for RK3568
 
 usage() {
     cat << EOF

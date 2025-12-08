@@ -2,10 +2,25 @@
 set -e
 
 # Rockchip Kernel Build Script
-# Builds kernel 6.6 with custom DTBs and creates .deb packages
+# Builds mainline kernel 6.12 LTS with custom DTBs and creates .deb packages
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Cleanup function for git lock files (created by interrupted Docker git operations)
+cleanup_git_locks() {
+    rm -f "${PROJECT_ROOT}/.git/index.lock" 2>/dev/null || true
+    # Clean kernel repo locks (if KERNEL_VERSION is set)
+    if [ -n "${KERNEL_VERSION}" ]; then
+        rm -f "${PROJECT_ROOT}/kernel-${KERNEL_VERSION}/.git/index.lock" 2>/dev/null || true
+    fi
+}
+
+# Set up trap to clean locks on exit/interrupt
+trap cleanup_git_locks EXIT INT TERM
+
+# Clean any existing locks from previous interrupted runs
+cleanup_git_locks
 
 # Auto-use Docker if not already in container
 if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
@@ -23,9 +38,16 @@ if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
         GROUP_ID="${SUDO_GID:-$(id -g)}"
 
         echo "==> Running build in Docker container..."
-        exec docker run --rm -it \
+        # Use -it for interactive mode if stdin is a terminal, otherwise -t only
+        # Also pass SKIP_KERNEL_UPDATE=1 since Docker stdin may not work properly
+        DOCKER_TTY_FLAGS="-t"
+        if [ -t 0 ]; then
+            DOCKER_TTY_FLAGS="-it"
+        fi
+        exec docker run --rm ${DOCKER_TTY_FLAGS} \
             -v "${PROJECT_ROOT}:/work" \
             -e CONTAINER=1 \
+            -e SKIP_KERNEL_UPDATE="${SKIP_KERNEL_UPDATE:-0}" \
             -w /work \
             -u "${USER_ID}:${GROUP_ID}" \
             "${DOCKER_IMAGE}:latest" \
@@ -36,13 +58,13 @@ if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
 fi
 
 # Configuration
-KERNEL_VERSION="6.6"
-KERNEL_BRANCH="develop-6.6"
-KERNEL_REPO="https://github.com/rockchip-linux/kernel.git"
+KERNEL_VERSION="6.12"
+KERNEL_BRANCH="v6.12"
+KERNEL_REPO="https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git"
 KERNEL_DIR="${PROJECT_ROOT}/kernel-${KERNEL_VERSION}"
 
 BOARD="${1:-rk3568_sz3568}"
-DEFCONFIG="rockchip_linux_defconfig"
+DEFCONFIG="defconfig"  # Mainline uses generic defconfig, then we customize
 CORES=$(nproc)
 
 # Board-specific DTB
@@ -116,13 +138,25 @@ clone_kernel() {
             "${KERNEL_REPO}" "${KERNEL_DIR}"
     else
         log "Kernel already cloned"
-        read -p "Update kernel source? (y/N) " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            cd "${KERNEL_DIR}"
-            git fetch origin "${KERNEL_BRANCH}"
-            git reset --hard "origin/${KERNEL_BRANCH}"
-            cd "${PROJECT_ROOT}"
+
+        # Skip update prompt if SKIP_KERNEL_UPDATE is set, running non-interactively,
+        # or if stdin is not a real terminal (Docker without -i flag)
+        if [ "${SKIP_KERNEL_UPDATE}" = "1" ] || [ ! -t 0 ] || [ -n "$CONTAINER" ]; then
+            log "Skipping kernel update (using existing source)"
+        else
+            read -t 10 -p "Update kernel source? (y/N) " -n 1 -r || REPLY="n"
+            echo
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                cd "${KERNEL_DIR}"
+                log "Cleaning kernel repo state..."
+                git clean -fdx 2>/dev/null || true
+                git reset --hard 2>/dev/null || true
+                log "Fetching latest kernel..."
+                git fetch origin "${KERNEL_BRANCH}"
+                git checkout "${KERNEL_BRANCH}" 2>/dev/null || git checkout -b "${KERNEL_BRANCH}" "origin/${KERNEL_BRANCH}"
+                git reset --hard "origin/${KERNEL_BRANCH}"
+                cd "${PROJECT_ROOT}"
+            fi
         fi
     fi
 }
@@ -163,7 +197,19 @@ copy_custom_files() {
             cp -v "${PROJECT_ROOT}"/external/custom/board/rk3568/dts/rockchip/*.dtsi \
                 "${KERNEL_DIR}/arch/arm64/boot/dts/rockchip/"
         fi
+    else
+        warn "No custom DTBs found in external/custom/board/rk3568/dts/rockchip"
+    fi
 
+    # Copy vendor dt-bindings headers (for mainline kernel compatibility)
+    if [ -d "${PROJECT_ROOT}/external/custom/board/rk3568/dt-bindings" ]; then
+        log "Copying vendor dt-bindings headers..."
+        cp -rv "${PROJECT_ROOT}"/external/custom/board/rk3568/dt-bindings/* \
+            "${KERNEL_DIR}/include/dt-bindings/"
+    fi
+
+    # Continue with DTB Makefile additions
+    if [ -d "${PROJECT_ROOT}/external/custom/board/rk3568/dts/rockchip" ]; then
         # Add custom DTBs to Makefile so they get compiled
         log "Adding custom DTBs to Makefile..."
         local makefile_path="${KERNEL_DIR}/arch/arm64/boot/dts/rockchip/Makefile"
@@ -188,8 +234,6 @@ copy_custom_files() {
                 fi
             fi
         done
-    else
-        warn "No custom DTBs found in external/custom/board/rk3568/dts/rockchip"
     fi
 
     # Copy custom PHY drivers
@@ -305,8 +349,10 @@ build_deb_packages() {
     log "Package version: ${pkg_version}"
 
     # Build deb packages (creates in parent directory)
+    # Use DPKG_FLAGS=-d to skip dependency checks (cross-compiling arm64 on x86_64)
     [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Building .deb packages"
     KDEB_PKGVERSION="${pkg_version}" \
+    DPKG_FLAGS="-d" \
     quiet_run make -j"${CORES}" ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
         bindeb-pkg || error "Package build failed"
 

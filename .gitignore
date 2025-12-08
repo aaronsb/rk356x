@@ -10,6 +10,7 @@ buildroot-*.tar.gz
 
 # U-Boot source (cloned during build)
 u-boot/
+u-boot-*/
 
 # Temporary files
 *.tmp
@@ -34,6 +35,7 @@ build.log
 *.ko
 *.elf
 *.bin
+!external/custom/board/rk3568/rootfs-overlay/usr/lib/firmware/edid/*.bin
 *.dtb
 !boards/*/dtb/*.dtb
 *.dtbo
@@ -92,7 +94,7 @@ tpl/
 
 # Downloaded tools
 tools/
-kernel-6.6/
+kernel-*/
 linux-*.deb
 linux-*.changes
 linux-*.buildinfo

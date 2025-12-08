@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-# Debian/Ubuntu Rootfs Build Script for RK3568
-# Based on Firefly guide but updated for Ubuntu 24.04 LTS
+# Debian Rootfs Build Script for RK3568
+# Pure Debian 12 (bookworm) with kernel 6.1 LTS
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -49,6 +49,7 @@ if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
 
         docker run --rm -it \
             --privileged \
+            --network=host \
             -v "${PROJECT_ROOT}:/work" \
             -v "${PROJECT_ROOT}/.cache/rootfs-apt-cache:/apt-cache" \
             -v "${PROJECT_ROOT}/.cache/rootfs-apt-lists:/apt-lists" \
@@ -70,10 +71,8 @@ if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
 fi
 
 # Configuration
-UBUNTU_VERSION="24.04.3"
-UBUNTU_RELEASE="noble"
-UBUNTU_BASE_URL="https://cdimage.ubuntu.com/ubuntu-base/releases/${UBUNTU_RELEASE}/release"
-UBUNTU_BASE="ubuntu-base-${UBUNTU_VERSION}-base-arm64.tar.gz"
+DEBIAN_RELEASE="bookworm"  # Debian 12 (LTS until June 2028)
+DEBIAN_MIRROR="http://deb.debian.org/debian"
 
 ROOTFS_DIR="${PROJECT_ROOT}/rootfs"
 ROOTFS_WORK="${ROOTFS_DIR}/work"
@@ -134,31 +133,21 @@ check_deps() {
     fi
 }
 
-download_ubuntu_base() {
-    log "Downloading Ubuntu Base ${UBUNTU_VERSION}..."
-
-    mkdir -p "${ROOTFS_DIR}"
-    cd "${ROOTFS_DIR}"
-
-    if [ ! -f "${UBUNTU_BASE}" ]; then
-        wget "${UBUNTU_BASE_URL}/${UBUNTU_BASE}" || error "Failed to download Ubuntu Base"
-    else
-        log "Ubuntu Base already downloaded"
-    fi
-}
-
-extract_rootfs() {
-    log "Extracting rootfs..."
+create_debian_rootfs() {
+    log "Creating Debian ${DEBIAN_RELEASE} base system with debootstrap..."
 
     rm -rf "${ROOTFS_WORK}"
-    mkdir -p "${ROOTFS_WORK}"
+    mkdir -p "${ROOTFS_DIR}"
 
+    # Use debootstrap to create minimal Debian base
     if [ "$QUIET_MODE" = "true" ]; then
-        echo -e "${YELLOW}▸${NC} Extracting Ubuntu base rootfs"
-        maybe_sudo tar -xzf "${ROOTFS_DIR}/${UBUNTU_BASE}" -C "${ROOTFS_WORK}" 2>&1 | grep -v "tar:"
+        echo -e "${YELLOW}▸${NC} Running debootstrap (this may take a few minutes)..."
+        maybe_sudo debootstrap --arch=arm64 --foreign "${DEBIAN_RELEASE}" "${ROOTFS_WORK}" "${DEBIAN_MIRROR}" > /dev/null 2>&1 || error "First stage debootstrap failed"
     else
-        maybe_sudo tar -xzf "${ROOTFS_DIR}/${UBUNTU_BASE}" -C "${ROOTFS_WORK}"
+        maybe_sudo debootstrap --arch=arm64 --foreign "${DEBIAN_RELEASE}" "${ROOTFS_WORK}" "${DEBIAN_MIRROR}" || error "First stage debootstrap failed"
     fi
+
+    log "Completed first stage debootstrap"
 }
 
 setup_qemu() {
@@ -166,8 +155,27 @@ setup_qemu() {
 
     maybe_sudo cp /usr/bin/qemu-aarch64-static "${ROOTFS_WORK}/usr/bin/"
 
-    # DNS resolution
-    maybe_sudo cp /etc/resolv.conf "${ROOTFS_WORK}/etc/resolv.conf"
+    # Bind-mount resolv.conf for live DNS resolution in chroot
+    # This is critical for QEMU user-mode emulation to access network
+    if [ ! -f /etc/resolv.conf ]; then
+        echo "nameserver 8.8.8.8" | maybe_sudo tee /tmp/resolv.conf.chroot > /dev/null
+        echo "nameserver 8.8.4.4" | maybe_sudo tee -a /tmp/resolv.conf.chroot > /dev/null
+        RESOLV_CONF_SRC="/tmp/resolv.conf.chroot"
+    else
+        RESOLV_CONF_SRC="/etc/resolv.conf"
+    fi
+    maybe_sudo touch "${ROOTFS_WORK}/etc/resolv.conf"
+    maybe_sudo mount --bind "${RESOLV_CONF_SRC}" "${ROOTFS_WORK}/etc/resolv.conf"
+
+    # Complete second stage of debootstrap (runs inside chroot with QEMU)
+    log "Running second stage debootstrap..."
+    if [ "$QUIET_MODE" = "true" ]; then
+        echo -e "${YELLOW}▸${NC} Completing debootstrap (installing base packages)..."
+        maybe_sudo chroot "${ROOTFS_WORK}" /debootstrap/debootstrap --second-stage > /dev/null 2>&1 || error "Second stage debootstrap failed"
+    else
+        maybe_sudo chroot "${ROOTFS_WORK}" /debootstrap/debootstrap --second-stage || error "Second stage debootstrap failed"
+    fi
+    log "Completed second stage debootstrap"
 }
 
 customize_rootfs() {
@@ -186,6 +194,13 @@ export PROFILE="${PROFILE}"
 # Disable Python byte-compilation to avoid QEMU segfaults during package installation
 export PYTHONDONTWRITEBYTECODE=1
 export DEB_PYTHON_INSTALL_LAYOUT=deb_system
+
+# Configure Debian repositories (main, contrib, non-free for firmware)
+cat > /etc/apt/sources.list << 'SOURCES_LIST'
+deb http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
+deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
+SOURCES_LIST
 
 # Update package lists
 apt-get update
@@ -218,6 +233,7 @@ fi
 # Install essential packages
 apt-get install -y \$APT_OPTS \
     systemd systemd-sysv \
+    systemd-timesyncd \
     openssh-server \
     sudo \
     ca-certificates \
@@ -258,9 +274,16 @@ else
         iw
 fi
 
-# Generate locales
-locale-gen en_US.UTF-8
-update-locale LANG=en_US.UTF-8
+# Configure and generate locales
+# Enable en_US.UTF-8 in locale.gen
+echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+locale-gen
+
+# Set default locale (update-locale can fail in QEMU chroot, so write directly)
+cat > /etc/default/locale << 'LOCALE_CONF'
+LANG=en_US.UTF-8
+LC_ALL=en_US.UTF-8
+LOCALE_CONF
 
 # Install XFCE desktop
 if [ "\$PROFILE" = "full" ]; then
@@ -280,6 +303,7 @@ else
         xfce4-panel \
         xfce4-settings \
         xfce4-terminal \
+        thunar \
         xserver-xorg-core \
         xserver-xorg-input-libinput \
         xserver-xorg-video-fbdev \
@@ -291,6 +315,7 @@ fi
 # Install graphics and multimedia
 apt-get install -y \$APT_OPTS \
     libdrm2 \
+    libdrm-tests \
     mesa-utils \
     libgles2 \
     libegl1 \
@@ -298,7 +323,9 @@ apt-get install -y \$APT_OPTS \
     libx11-6 \
     libxcb1 \
     libxcb-dri2-0 \
-    libxcb-dri3-0
+    libxcb-dri3-0 \
+    weston \
+    glmark2-es2-drm
 
 if [ "\$PROFILE" = "full" ]; then
     # Full profile: add GStreamer for media playback
@@ -312,15 +339,17 @@ fi
 
 # Install browser
 if [ "\$PROFILE" = "full" ]; then
-    # Full profile: GNOME Web (Epiphany)
-    apt-get install -y \$APT_OPTS epiphany-browser
+    # Full profile: GNOME Web (Epiphany) and Chromium
+    apt-get install -y \$APT_OPTS epiphany-browser chromium
 else
-    # Minimal profile: Chromium open-source build (no snap, minimal dependencies)
+    # Minimal profile: Chromium (native .deb package in Debian)
+    # Chromium provides hardware-accelerated rendering via OpenGL
     apt-get install -y \$APT_OPTS chromium
 fi
 
-# Mali GPU support will be installed via .deb package in post-install step
-echo "Mali GPU package will be installed separately"
+# GPU support: Using open-source Panfrost driver (built into kernel)
+# No proprietary Mali packages needed - Panfrost provides desktop OpenGL via Mesa
+echo "GPU: Panfrost driver enabled in kernel (open-source Mesa)"
 
 # Install utilities
 if [ "\$PROFILE" = "full" ]; then
@@ -346,13 +375,26 @@ else
         htop \
         ethtool \
         rsync \
-        parted
+        parted \
+        u-boot-tools \
+        i2c-tools
 fi
 
 # Create user
 useradd -m -s /bin/bash -G sudo,video,audio,dialout,render rock
 echo "rock:rock" | chpasswd
 echo "root:root" | chpasswd
+
+# Set hostname (prevents inheriting build host's hostname)
+echo "sz3568" > /etc/hostname
+cat > /etc/hosts << 'HOSTS'
+127.0.0.1	localhost
+127.0.1.1	sz3568
+
+::1		localhost ip6-localhost ip6-loopback
+ff02::1		ip6-allnodes
+ff02::2		ip6-allrouters
+HOSTS
 
 # Add lightdm user to render/video groups for GPU access
 usermod -a -G render,video lightdm || true
@@ -384,6 +426,15 @@ UseDNS=yes
 NETCONF
 fi
 systemctl enable ssh
+systemctl enable systemd-timesyncd
+
+# Configure timesyncd for NTP
+mkdir -p /etc/systemd/timesyncd.conf.d
+cat > /etc/systemd/timesyncd.conf.d/rockchip.conf << 'TIMESYNCD_CONF'
+[Time]
+NTP=0.pool.ntp.org 1.pool.ntp.org 2.pool.ntp.org 3.pool.ntp.org
+FallbackNTP=time.cloudflare.com time.google.com
+TIMESYNCD_CONF
 
 # Create first-boot Python bytecode compilation service
 cat > /etc/systemd/system/py3compile-first-boot.service << 'FIRSTBOOT_SERVICE'
@@ -607,7 +658,7 @@ apply_rootfs_overlay() {
     # Apply common overlay first
     if [ -d "$overlay_dir" ]; then
         log "Applying common rootfs overlay from ${overlay_dir}..."
-        maybe_sudo cp -a "${overlay_dir}"/* "${ROOTFS_WORK}/" || {
+        maybe_sudo cp -a --no-preserve=ownership "${overlay_dir}"/* "${ROOTFS_WORK}/" || {
             warn "Failed to copy some common overlay files"
         }
         log "✓ Common rootfs overlay applied"
@@ -618,7 +669,7 @@ apply_rootfs_overlay() {
     # Apply board-specific overlay (can override common files)
     if [ -d "$board_overlay_dir" ]; then
         log "Applying board-specific rootfs overlay from ${board_overlay_dir}..."
-        maybe_sudo cp -a "${board_overlay_dir}"/* "${ROOTFS_WORK}/" || {
+        maybe_sudo cp -a --no-preserve=ownership "${board_overlay_dir}"/* "${ROOTFS_WORK}/" || {
             warn "Failed to copy some board-specific overlay files"
         }
 
@@ -683,6 +734,59 @@ CHROOT_EOF
     log "✓ Mali GPU installed: libmali-bifrost-g52-g13p0"
 }
 
+install_panfrost_mesa() {
+    log "Installing Mesa with Panfrost driver (open-source Mali GPU support)..."
+
+    # Debian Bookworm includes Panfrost in standard Mesa packages
+    # No PPA needed - just install from official Debian repos!
+
+    maybe_sudo cp /usr/bin/qemu-aarch64-static "${ROOTFS_WORK}/usr/bin/" || true
+
+    if [ "$QUIET_MODE" = "true" ]; then
+        echo -e "${YELLOW}▸${NC} Installing Mesa with Panfrost support"
+        maybe_sudo chroot "${ROOTFS_WORK}" /bin/bash > /dev/null 2>&1 << 'CHROOT_EOF'
+set -e
+export DEBIAN_FRONTEND=noninteractive
+
+# Install Mesa with Panfrost from standard Debian repos
+apt-get update
+apt-get install -y --no-install-recommends \
+    mesa-vulkan-drivers \
+    libegl-mesa0 \
+    libgl1-mesa-dri \
+    libgles2-mesa \
+    libglx-mesa0 \
+    mesa-va-drivers \
+    mesa-utils
+
+# Verify Panfrost is available
+dpkg -l | grep mesa
+CHROOT_EOF
+    else
+        maybe_sudo chroot "${ROOTFS_WORK}" /bin/bash << 'CHROOT_EOF'
+set -e
+export DEBIAN_FRONTEND=noninteractive
+
+echo "Installing Mesa with Panfrost support..."
+apt-get update
+apt-get install -y --no-install-recommends \
+    mesa-vulkan-drivers \
+    libegl-mesa0 \
+    libgl1-mesa-dri \
+    libgles2-mesa \
+    libglx-mesa0 \
+    mesa-va-drivers \
+    mesa-utils
+
+echo "Verifying Mesa installation..."
+dpkg -l | grep mesa
+echo "Mesa with Panfrost installed successfully!"
+CHROOT_EOF
+    fi
+
+    log "✓ Mesa with Panfrost installed (Debian Bookworm standard packages)"
+}
+
 create_image() {
     log "Creating rootfs image..."
 
@@ -707,13 +811,39 @@ create_image() {
     local mount_point="${ROOTFS_DIR}/mnt"
     mkdir -p "${mount_point}"
 
-    # Mount using -o loop (handles loop device automatically)
-    maybe_sudo mount -o loop "${ROOTFS_IMAGE}" "${mount_point}"
+    # Ensure loop devices are available (needed in Docker even with --privileged)
+    if [ ! -e /dev/loop-control ]; then
+        warn "Loop device control not available, attempting to create..."
+        maybe_sudo mknod /dev/loop-control c 10 237 2>/dev/null || true
+    fi
+
+    # Create loop devices if they don't exist (Docker may not have them)
+    for i in $(seq 0 7); do
+        if [ ! -e /dev/loop$i ]; then
+            maybe_sudo mknod /dev/loop$i b 7 $i 2>/dev/null || true
+        fi
+    done
+
+    # Load loop module if not loaded (may not be needed on most systems)
+    maybe_sudo modprobe loop 2>/dev/null || true
+
+    # Use losetup explicitly for better error handling
+    local loop_dev
+    loop_dev=$(maybe_sudo losetup --find --show "${ROOTFS_IMAGE}") || {
+        error "Failed to setup loop device. If running in Docker, ensure --privileged is set."
+    }
+    log "Using loop device: ${loop_dev}"
+
+    # Mount the loop device
+    maybe_sudo mount "${loop_dev}" "${mount_point}"
 
     [ "$QUIET_MODE" = "true" ] && echo -e "${YELLOW}▸${NC} Copying rootfs to image"
     maybe_sudo cp -a "${ROOTFS_WORK}"/* "${mount_point}/"
 
     maybe_sudo umount "${mount_point}"
+
+    # Detach loop device
+    maybe_sudo losetup -d "${loop_dev}" 2>/dev/null || true
 
     # Optimize
     if [ "$QUIET_MODE" = "true" ]; then
@@ -731,51 +861,57 @@ create_image() {
 cleanup() {
     log "Cleaning up..."
 
-    # Ensure everything is unmounted
+    # Ensure everything is unmounted (in reverse order of mounting)
     maybe_sudo umount -lf "${ROOTFS_WORK}/var/cache/apt" 2>/dev/null || true
     maybe_sudo umount -lf "${ROOTFS_WORK}/var/lib/apt/lists" 2>/dev/null || true
-    maybe_sudo umount -lf "${ROOTFS_WORK}/proc" 2>/dev/null || true
-    maybe_sudo umount -lf "${ROOTFS_WORK}/sys" 2>/dev/null || true
+    maybe_sudo umount -lf "${ROOTFS_WORK}/etc/resolv.conf" 2>/dev/null || true
     maybe_sudo umount -lf "${ROOTFS_WORK}/dev/pts" 2>/dev/null || true
     maybe_sudo umount -lf "${ROOTFS_WORK}/dev" 2>/dev/null || true
+    maybe_sudo umount -lf "${ROOTFS_WORK}/sys" 2>/dev/null || true
+    maybe_sudo umount -lf "${ROOTFS_WORK}/proc" 2>/dev/null || true
 
     if [ "${KEEP_WORK:-0}" != "1" ]; then
         maybe_sudo rm -rf "${ROOTFS_WORK}"
         log "Work directory removed (set KEEP_WORK=1 to preserve)"
     fi
+
+    # Clean up temporary resolv.conf if we created one
+    [ -f /tmp/resolv.conf.chroot ] && rm -f /tmp/resolv.conf.chroot || true
 }
 
 main() {
-    log "Building Debian rootfs for RK3568"
+    log "Building Debian ${DEBIAN_RELEASE} rootfs for RK3568"
     log "Profile: ${PROFILE}"
     log ""
 
     check_deps
-    download_ubuntu_base
-    extract_rootfs
+    create_debian_rootfs
     setup_qemu
     customize_rootfs
     install_setup_emmc
     apply_rootfs_overlay
-    install_mali_gpu
+    # install_mali_gpu  # DISABLED: Conflicts with Panfrost - using stock Mesa instead
+    install_panfrost_mesa  # Install Mesa with Panfrost for open-source GPU support
     create_image
     cleanup
 
     log ""
     log "✓ Build complete!"
+    log "Distribution: Debian ${DEBIAN_RELEASE} (kernel 6.1 LTS)"
     log "Profile: ${PROFILE}"
     log "Rootfs image: ${ROOTFS_IMAGE}"
     log ""
     if [ "$PROFILE" = "minimal" ]; then
         log "Minimal profile notes:"
         log "  - LightDM auto-starts XFCE desktop on boot"
+        log "  - Chromium browser with OpenGL acceleration"
         log "  - No GStreamer plugins: Install if you need video playback"
         log "  - To build full profile: PROFILE=full ./scripts/build-debian-rootfs.sh"
         log ""
     fi
     log "Next steps:"
     log "1. Build kernel with: ./scripts/build-kernel.sh"
-    log "2. Flash to SD card with: ./scripts/flash-image.sh"
+    log "2. Assemble image with: ./scripts/assemble-debian-image.sh"
 }
 
 trap cleanup EXIT

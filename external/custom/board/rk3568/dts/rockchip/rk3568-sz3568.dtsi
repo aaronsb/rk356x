@@ -1071,6 +1071,8 @@
 
 &gpu {
 	mali-supply = <&vdd_gpu>;
+	/* Disable OPP table - let Panfrost run at fixed frequency */
+	/delete-property/ operating-points-v2;
 	status = "okay";
 };
 

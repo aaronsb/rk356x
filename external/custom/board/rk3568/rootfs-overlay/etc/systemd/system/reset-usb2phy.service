@@ -1,0 +1,12 @@
+[Unit]
+Description=Reset USB2 PHY for OTG port hotplug fix
+After=systemd-modules-load.service
+Before=display-manager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/reset-usb2phy
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
