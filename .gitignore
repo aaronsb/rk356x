@@ -35,6 +35,7 @@ build.log
 *.ko
 *.elf
 *.bin
+!external/custom/board/rk3568/rootfs-overlay/usr/lib/firmware/edid/*.bin
 *.dtb
 !boards/*/dtb/*.dtb
 *.dtbo

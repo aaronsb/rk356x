@@ -51,6 +51,9 @@ IMAGE_SIZE="6144"          # Total image size in MB (6GB to fit rootfs + desktop
 BOOT_SIZE="256"            # Boot partition size in MB
 IMAGE_NAME="rk3568-debian-$(date +%Y%m%d%H%M)"
 
+# Root device will be determined by PARTUUID during image assembly
+# This ensures boot.scr always matches the actual partition UUID
+
 # Kernel version (from environment or default to 6.1)
 KERNEL_VERSION="${KERNEL_VERSION:-6.1}"
 
@@ -366,7 +369,8 @@ install_boot_files() {
         log "✓ U-Boot images copied (available for on-board flashing)"
     fi
 
-    # Get PARTUUID of root partition for extlinux.conf
+    # Get PARTUUID of root partition for boot.scr
+    # This is read from the actual partition we just created, so it will always match
     log "Getting root partition PARTUUID..."
     ROOT_PARTUUID=$(blkid -s PARTUUID -o value "${ROOT_PART}")
     log "Root PARTUUID: ${ROOT_PARTUUID}"
@@ -388,8 +392,9 @@ echo "=== Debian RK3568 Boot Script ==="
 setenv bootargs
 
 # Set bootargs explicitly
-# video=HDMI-A-1:1920x1080@60e forces HDMI mode at boot to prevent "Cannot find any crtc or sizes" error
-setenv bootargs "root=PARTUUID=${ROOT_PARTUUID} rootwait rw console=ttyS2,1500000 earlycon=uart8250,mmio32,0xfe660000 video=HDMI-A-1:1920x1080@60e"
+# drm.edid_firmware loads static EDID when DDC fails to read from monitor
+# video=HDMI-A-1:e forces connector enabled, clk_ignore_unused prevents UART clock disable
+setenv bootargs "root=PARTUUID=${ROOT_PARTUUID} rootwait rw console=ttyS2,1500000 earlycon=uart8250,mmio32,0xfe660000 clk_ignore_unused drm.edid_firmware=HDMI-A-1:edid/1920x1080.bin video=HDMI-A-1:1920x1080@60e"
 
 # Load kernel and DTB from current boot device
 load \${devtype} \${devnum}:\${distro_bootpart} \${kernel_addr_r} /Image
