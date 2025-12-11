@@ -234,6 +234,7 @@ fi
 apt-get install -y \$APT_OPTS \
     systemd systemd-sysv \
     systemd-timesyncd \
+    dbus \
     openssh-server \
     sudo \
     ca-certificates \
