@@ -34,11 +34,20 @@ echo '--- OpenGL/EGL Libraries ---'
 ls -lh /usr/lib/lib*GL*.so* 2>/dev/null | head -5 || echo 'No GL libraries found'
 echo ''
 
+echo '--- Compositor Status ---'
+if command -v xfconf-query >/dev/null 2>&1; then
+    COMPOSITING=$(xfconf-query -c xfwm4 -p /general/use_compositing 2>/dev/null || echo 'unknown')
+    echo "xfwm4 compositor: $COMPOSITING"
+else
+    echo 'xfconf-query not available (not in X session?)'
+fi
+echo ''
+
 echo '========================================='
 echo 'Summary:'
 echo '========================================='
 echo 'GPU: Mali-G52 (Bifrost arch 7.4.0)'
-echo 'Driver: ARM Mali Bifrost (proprietary)'
+echo 'Driver: Panfrost (open-source Mesa)'
 echo 'DRM: Rockchip display-subsystem'
 if command -v modetest >/dev/null 2>&1; then
     HDMI_STATUS=$(modetest -M rockchip -c 2>/dev/null | grep 'HDMI-A-1' | awk '{print $3}')

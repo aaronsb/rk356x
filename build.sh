@@ -647,11 +647,11 @@ clean_artifacts() {
         info "Pruning dangling Docker images..."
         docker image prune -f 2>/dev/null || true
 
-        # Prune build cache for rk3568 builds
-        info "Pruning Docker build cache..."
-        docker builder prune -f 2>/dev/null || true
+        # NOTE: NOT pruning Docker builder cache - it contains apt packages
+        # that would need to be re-downloaded. Use 'docker builder prune -f'
+        # manually if you need to reclaim disk space.
 
-        log "Docker cleanup complete"
+        log "Docker cleanup complete (apt cache preserved)"
     fi
 
     if [ "$cleaned" = true ]; then
