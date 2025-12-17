@@ -133,11 +133,24 @@ check_deps() {
     fi
 }
 
+# Debootstrap cache tarball location
+DEBOOTSTRAP_CACHE="${ROOTFS_DIR}/debootstrap-${DEBIAN_RELEASE}-arm64.tar.gz"
+
 create_debian_rootfs() {
-    log "Creating Debian ${DEBIAN_RELEASE} base system with debootstrap..."
+    log "Creating Debian ${DEBIAN_RELEASE} base system..."
 
     rm -rf "${ROOTFS_WORK}"
     mkdir -p "${ROOTFS_DIR}"
+
+    # Check for cached debootstrap tarball
+    if [ -f "${DEBOOTSTRAP_CACHE}" ]; then
+        log "Using cached debootstrap tarball (saves ~5 minutes)"
+        mkdir -p "${ROOTFS_WORK}"
+        maybe_sudo tar -xzf "${DEBOOTSTRAP_CACHE}" -C "${ROOTFS_WORK}"
+        return 0
+    fi
+
+    log "No cache found, running debootstrap (this will be cached for next time)..."
 
     # Use debootstrap to create minimal Debian base
     if [ "$QUIET_MODE" = "true" ]; then
@@ -167,6 +180,12 @@ setup_qemu() {
     maybe_sudo touch "${ROOTFS_WORK}/etc/resolv.conf"
     maybe_sudo mount --bind "${RESOLV_CONF_SRC}" "${ROOTFS_WORK}/etc/resolv.conf"
 
+    # Skip second stage if we restored from cache (no /debootstrap directory)
+    if [ ! -d "${ROOTFS_WORK}/debootstrap" ]; then
+        log "Skipping second stage (restored from cache)"
+        return 0
+    fi
+
     # Complete second stage of debootstrap (runs inside chroot with QEMU)
     log "Running second stage debootstrap..."
     if [ "$QUIET_MODE" = "true" ]; then
@@ -176,6 +195,11 @@ setup_qemu() {
         maybe_sudo chroot "${ROOTFS_WORK}" /debootstrap/debootstrap --second-stage || error "Second stage debootstrap failed"
     fi
     log "Completed second stage debootstrap"
+
+    # Cache the debootstrap result for future builds
+    log "Caching debootstrap result for future builds..."
+    maybe_sudo tar -czf "${DEBOOTSTRAP_CACHE}" -C "${ROOTFS_WORK}" .
+    log "Cached to ${DEBOOTSTRAP_CACHE}"
 }
 
 customize_rootfs() {
@@ -286,31 +310,27 @@ LANG=en_US.UTF-8
 LC_ALL=en_US.UTF-8
 LOCALE_CONF
 
-# Install XFCE desktop
+# Install Wayland desktop (sway - lightweight i3-like compositor)
+# NOTE: X11/XFCE had a critical bug where mouse input blocked display refresh
+# seatd provides seat management for non-root Wayland compositors
+# swayidle handles idle/timeout behavior
+apt-get install -y \$APT_OPTS \
+    sway \
+    seatd \
+    swayidle \
+    foot \
+    xwayland \
+    thunar \
+    dbus
+
 if [ "\$PROFILE" = "full" ]; then
-    # Full profile: complete XFCE with all plugins and display manager
+    # Full profile: add more Wayland utilities
     apt-get install -y \$APT_OPTS \
-        xfce4 \
-        xfce4-terminal \
-        lightdm \
-        xinit \
-        x11-xserver-utils
-else
-    # Minimal profile: core XFCE only (no extra plugins, games, etc)
-    apt-get install -y \$APT_OPTS \
-        xfce4-session \
-        xfwm4 \
-        xfdesktop4 \
-        xfce4-panel \
-        xfce4-settings \
-        xfce4-terminal \
-        thunar \
-        xserver-xorg-core \
-        xserver-xorg-input-libinput \
-        xserver-xorg-video-fbdev \
-        lightdm \
-        lightdm-gtk-greeter \
-        dbus-x11
+        waybar \
+        wofi \
+        wl-clipboard \
+        grim \
+        slurp
 fi
 
 # Install graphics and multimedia
@@ -321,10 +341,6 @@ apt-get install -y \$APT_OPTS \
     libgles2 \
     libegl1 \
     libgbm1 \
-    libx11-6 \
-    libxcb1 \
-    libxcb-dri2-0 \
-    libxcb-dri3-0 \
     weston \
     glmark2-es2-drm
 
@@ -397,19 +413,43 @@ ff02::1		ip6-allnodes
 ff02::2		ip6-allrouters
 HOSTS
 
-# Add lightdm user to render/video groups for GPU access
-usermod -a -G render,video lightdm || true
+# Create desktop user account (sway refuses to run as root)
+useradd -m -s /bin/bash -G render,video,audio,input,sudo user
+echo 'user:user' | chpasswd
+
+# Grant sudo access without password
+echo 'user ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/user
+chmod 440 /etc/sudoers.d/user
 
 # NOTE: eMMC provisioning script is installed separately after chroot
+
+# Set up auto-login to sway on tty1 as 'user'
+mkdir -p /etc/systemd/system/getty@tty1.service.d
+cat > /etc/systemd/system/getty@tty1.service.d/override.conf << 'GETTY_OVERRIDE'
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin user --noclear %I \$TERM
+GETTY_OVERRIDE
+
+# Create user's profile to start sway on tty1
+mkdir -p /home/user
+cat > /home/user/.profile << 'SWAY_AUTOSTART'
+# Auto-start sway on tty1
+if [ -z "\$DISPLAY" ] && [ "\$XDG_VTNR" = "1" ] && [ -z "\$WAYLAND_DISPLAY" ]; then
+    export XDG_RUNTIME_DIR=/run/user/\$(id -u)
+    mkdir -p "\$XDG_RUNTIME_DIR"
+    chmod 700 "\$XDG_RUNTIME_DIR"
+    exec sway
+fi
+SWAY_AUTOSTART
+chown -R user:user /home/user
 
 # Enable services
 if [ "\$PROFILE" = "full" ]; then
     systemctl enable NetworkManager
-    systemctl enable lightdm
 else
     systemctl enable systemd-networkd
     systemctl enable systemd-resolved
-    systemctl enable lightdm
     # Note: set-mac.service is enabled after overlay application
 
     # Configure ethernet for DHCP (systemd-networkd)
@@ -428,6 +468,7 @@ NETCONF
 fi
 systemctl enable ssh
 systemctl enable systemd-timesyncd
+systemctl enable seatd
 
 # Configure timesyncd for NTP
 mkdir -p /etc/systemd/timesyncd.conf.d
@@ -488,7 +529,7 @@ EOF
 
     # Run customization
     if [ "$QUIET_MODE" = "true" ]; then
-        echo -e "${YELLOW}▸${NC} Installing packages in chroot (systemd, NetworkManager, XFCE, etc)"
+        echo -e "${YELLOW}▸${NC} Installing packages in chroot (systemd, NetworkManager, sway, etc)"
         maybe_sudo chroot "${ROOTFS_WORK}" /bin/bash /tmp/customize.sh > /dev/null 2>&1 || {
             maybe_sudo umount -lf "${ROOTFS_WORK}/var/cache/apt" || true
             maybe_sudo umount -lf "${ROOTFS_WORK}/var/lib/apt/lists" || true
@@ -904,8 +945,8 @@ main() {
     log ""
     if [ "$PROFILE" = "minimal" ]; then
         log "Minimal profile notes:"
-        log "  - LightDM auto-starts XFCE desktop on boot"
-        log "  - Chromium browser with OpenGL acceleration"
+        log "  - Sway (Wayland) desktop auto-starts on tty1"
+        log "  - Chromium browser with Wayland + OpenGL acceleration"
         log "  - No GStreamer plugins: Install if you need video playback"
         log "  - To build full profile: PROFILE=full ./scripts/build-debian-rootfs.sh"
         log ""

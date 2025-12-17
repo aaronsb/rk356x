@@ -572,7 +572,7 @@ clean_artifacts() {
         cleaned=true
     fi
 
-    # Clean rootfs artifacts
+    # Clean rootfs artifacts (preserving debootstrap cache)
     if [ -d "${PROJECT_ROOT}/rootfs/work" ]; then
         info "Removing rootfs work directory..."
         sudo rm -rf "${PROJECT_ROOT}/rootfs/work"
@@ -584,6 +584,9 @@ clean_artifacts() {
         rm -f "${PROJECT_ROOT}/rootfs/debian-rootfs.img"
         cleaned=true
     fi
+
+    # NOTE: Preserving rootfs/debootstrap-*.tar.gz cache (saves ~5 min per build)
+    # To clear this cache: rm -f rootfs/debootstrap-*.tar.gz
 
     # Fix rootfs directory ownership if it exists (might be root-owned)
     if [ -d "${PROJECT_ROOT}/rootfs" ]; then
