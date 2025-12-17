@@ -354,14 +354,14 @@ if [ "\$PROFILE" = "full" ]; then
         gstreamer1.0-libav
 fi
 
-# Install browser
+# Install browsers
+# Firefox ESR: Best WebGL performance on Wayland (26-28 fps @ 500 fish)
+# Chromium: Alternative browser, has minor hover stuttering on Wayland
+apt-get install -y \$APT_OPTS chromium firefox-esr
+
 if [ "\$PROFILE" = "full" ]; then
-    # Full profile: GNOME Web (Epiphany) and Chromium
-    apt-get install -y \$APT_OPTS epiphany-browser chromium
-else
-    # Minimal profile: Chromium (native .deb package in Debian)
-    # Chromium provides hardware-accelerated rendering via OpenGL
-    apt-get install -y \$APT_OPTS chromium
+    # Full profile: Also add GNOME Web (Epiphany) for WebKitGTK testing
+    apt-get install -y \$APT_OPTS epiphany-browser
 fi
 
 # GPU support: Using open-source Panfrost driver (built into kernel)
@@ -946,7 +946,8 @@ main() {
     if [ "$PROFILE" = "minimal" ]; then
         log "Minimal profile notes:"
         log "  - Sway (Wayland) desktop auto-starts on tty1"
-        log "  - Chromium browser with Wayland + OpenGL acceleration"
+        log "  - Firefox ESR: Best WebGL performance (26-28 fps @ 500 fish)"
+        log "  - Chromium: Available but has minor hover stuttering on Wayland"
         log "  - No GStreamer plugins: Install if you need video playback"
         log "  - To build full profile: PROFILE=full ./scripts/build-debian-rootfs.sh"
         log ""
