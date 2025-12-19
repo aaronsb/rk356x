@@ -1,86 +1,86 @@
-# ADR-XXXX: [Title]
+# ADR-NNNN: [Title]
 
-**Status:** Proposed | Accepted | Deprecated | Superseded by [ADR-YYYY]
+**Status:** Proposed | Accepted | Deprecated | Superseded by ADR-XXXX
 
 **Date:** YYYY-MM-DD
 
-**Author:** [Name]
+**Deciders:** [List of people involved]
 
-**Reviewers:** [Names]
+**Technical Story:** [Link to GitHub issue/PR if applicable]
 
 ## Context
 
-[Describe the issue or situation that requires a decision. Include:]
-- What problem are we trying to solve?
-- What constraints exist?
-- What are the business/technical drivers?
-- What are the key requirements?
+[Describe the situation requiring a decision. What forces are at play?]
 
-## Decision
+## Decision Drivers
 
-[State the decision that was made. Be clear and concise.]
+- [Driver 1]
+- [Driver 2]
+- [Driver 3]
 
-We will [decision statement].
-
-## Options Considered
+## Considered Options
 
 ### Option 1: [Name]
 
-**Description:**
-[Brief description of this option]
+**Description:** [Brief description]
 
 **Pros:**
-- [Advantage 1]
-- [Advantage 2]
+- [Pro 1]
+- [Pro 2]
 
 **Cons:**
-- [Disadvantage 1]
-- [Disadvantage 2]
-
-**Cost/Effort:**
-[Estimated effort or cost]
+- [Con 1]
+- [Con 2]
 
 ### Option 2: [Name]
 
-[Same structure as Option 1]
+**Description:** [Brief description]
 
-### Option 3: [Name]
+**Pros:**
+- [Pro 1]
+- [Pro 2]
 
-[Same structure as Option 1]
+**Cons:**
+- [Con 1]
+- [Con 2]
+
+### Option 3: [Name] (if applicable)
+
+**Description:** [Brief description]
+
+**Pros:**
+- [Pro 1]
+- [Pro 2]
+
+**Cons:**
+- [Con 1]
+- [Con 2]
+
+## Decision
+
+[State the decision and rationale]
 
 ## Consequences
 
 ### Positive
 
-- [Benefit 1]
-- [Benefit 2]
-- [Benefit 3]
+- [Consequence 1]
+- [Consequence 2]
 
 ### Negative
 
-- [Trade-off 1]
-- [Trade-off 2]
-- [Limitation 1]
+- [Consequence 1]
+- [Consequence 2]
 
 ### Neutral
 
-- [Impact 1]
-- [Change 1]
+- [Consequence 1]
 
-## Implementation
+## Implementation Notes
 
-[Optional: High-level implementation approach or key steps]
-
-- Step 1
-- Step 2
-- Step 3
+[Optional: Migration path, key steps, gotchas]
 
 ## References
 
-- [Link to relevant documentation]
-- [Link to discussion/issue]
-- [External resource]
-
-## Notes
-
-[Optional: Any additional context, assumptions, or clarifications]
+- [Link 1]
+- [Link 2]

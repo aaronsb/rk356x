@@ -1,6 +1,6 @@
 # ADR-0001: Build System Selection - Buildroot vs Yocto/Debian
 
-**Status:** Accepted
+**Status:** Superseded by ADR-0002
 
 **Date:** 2025-11-14
 
@@ -270,3 +270,7 @@ Budget 1 week for team to complete Buildroot training:
 - Day 5: Testing and troubleshooting
 
 Bootlin provides free Buildroot training materials.
+
+---
+
+> **Supersession Note (2025-11-25):** This decision was made on day one of the project. After 11 days of hardware bring-up and experimentation, desktop/GPU requirements emerged that shifted the balance toward Debian. See ADR-0002 for the updated decision. This ADR remains as historical record of the original reasoning.

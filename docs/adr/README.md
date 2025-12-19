@@ -19,7 +19,23 @@ We use a simplified ADR format with the following sections:
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
-| [0001](./0001-build-system-selection.md) | Build System Selection: Buildroot vs Yocto/Debian | Accepted | 2025-11-14 |
+| [0000](./0000-adr-template-and-process.md) | ADR Template and Process | Accepted | 2025-11-14 |
+| [0001](./0001-build-system-selection.md) | Build System Selection: Buildroot | Superseded | 2025-11-14 |
+| [0002](./0002-debian-desktop-system.md) | Debian Desktop Build System | Accepted | 2025-11-25 |
+| [0003](./0003-mainline-uboot.md) | Mainline U-Boot | Accepted | 2025-12-01 |
+| [0004](./0004-panfrost-gpu.md) | Panfrost Open-Source GPU | Accepted | 2025-12-02 |
+| [0005](./0005-mainline-kernel.md) | Mainline Kernel Strategy | Accepted | 2025-12-03 |
+| [0006](./0006-wayland-sway-desktop.md) | Wayland/Sway Desktop | Accepted | 2025-12-16 |
+
+### Current Balance
+
+The project's current architectural state:
+
+- **Build System:** Debian 12 (bookworm) with Docker builds (ADR-0002)
+- **Bootloader:** Mainline U-Boot 2024.10+ (ADR-0003)
+- **GPU:** Panfrost open-source driver (ADR-0004)
+- **Kernel:** Mainline 6.12 (ADR-0005)
+- **Desktop:** Wayland with sway (ADR-0006)
 
 ## Creating a New ADR
 
