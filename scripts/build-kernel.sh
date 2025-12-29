@@ -169,16 +169,29 @@ copy_custom_files() {
         log "Applying kernel patches..."
         cd "${KERNEL_DIR}"
 
-        # Reset any previously applied patches
+        # Full reset: revert ALL modified files and remove untracked files
+        # This ensures patches apply cleanly on every build
+        log "Resetting kernel source to clean state..."
         git checkout -- . 2>/dev/null || true
+        git clean -fd 2>/dev/null || true
 
         for patch in "${PROJECT_ROOT}"/external/custom/patches/linux/*.patch; do
             if [ -f "$patch" ]; then
-                log "Applying: $(basename "$patch")"
-                if patch -p1 --dry-run < "$patch" &>/dev/null; then
+                patchname="$(basename "$patch")"
+                log "Applying: ${patchname}"
+
+                # Try exact match first, then fuzzy (-F3) if needed
+                if patch -p1 --dry-run < "$patch" 2>/dev/null; then
                     patch -p1 < "$patch"
+                elif patch -p1 -F3 --dry-run < "$patch" 2>/dev/null; then
+                    warn "Using fuzzy matching for ${patchname}"
+                    patch -p1 -F3 < "$patch"
                 else
-                    warn "Patch $(basename "$patch") already applied or failed"
+                    # Show the actual error
+                    error "Patch ${patchname} FAILED to apply:"
+                    patch -p1 --dry-run < "$patch" 2>&1 | head -20
+                    error "Fix the patch and retry. Aborting build."
+                    exit 1
                 fi
             fi
         done

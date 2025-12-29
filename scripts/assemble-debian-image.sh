@@ -392,9 +392,9 @@ echo "=== Debian RK3568 Boot Script ==="
 setenv bootargs
 
 # Set bootargs explicitly
-# drm.edid_firmware loads static EDID when DDC fails to read from monitor
-# video=HDMI-A-1:e forces connector enabled, clk_ignore_unused prevents UART clock disable
-setenv bootargs "root=PARTUUID=${ROOT_PARTUUID} rootwait rw console=ttyS2,1500000 earlycon=uart8250,mmio32,0xfe660000 clk_ignore_unused drm.edid_firmware=HDMI-A-1:edid/1920x1080.bin video=HDMI-A-1:1920x1080@60e"
+# video=HDMI-A-1:1920x1080@60e forces mode when DDC/EDID fails
+# clk_ignore_unused prevents UART clock disable
+setenv bootargs "root=PARTUUID=${ROOT_PARTUUID} rootwait rw console=ttyS2,1500000 earlycon=uart8250,mmio32,0xfe660000 clk_ignore_unused video=HDMI-A-1:1920x1080@60e"
 
 # Load kernel and DTB from current boot device
 load \${devtype} \${devnum}:\${distro_bootpart} \${kernel_addr_r} /Image

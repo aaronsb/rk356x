@@ -283,6 +283,9 @@
 	avdd-1v8-supply = <&vcca1v8_image>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&hdmitx_scl &hdmitx_sda &hdmitxm1_cec>;
+	/* Slow down DDC I2C to 50kHz for more reliable EDID reads */
+	ddc-i2c-scl-high-time-ns = <9625>;
+	ddc-i2c-scl-low-time-ns = <10000>;
 	status = "okay";
 };
 
@@ -765,11 +768,9 @@
 	status = "disabled";
 };
 
-/* DSI PHY enabled for LVDS mode
- * The LVDS controller uses the DSI PHY in LVDS mode for serialization
- */
+/* Disable mainline DSI PHY - we use video_phy for LVDS instead */
 &dsi_dphy0 {
-	status = "okay";
+	status = "disabled";
 };
 
 /* Additional I2C buses for peripherals */
@@ -781,8 +782,9 @@
 	status = "okay";
 };
 
+/* I2C5 disabled - pins conflict with GMAC1 (Ethernet) */
 &i2c5 {
-	status = "okay";
+	status = "disabled";
 };
 
 /* PWM for backlight control */

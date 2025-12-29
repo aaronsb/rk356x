@@ -1,34 +1,11 @@
-From: Aaron <aaron@local>
-Date: Sun, 29 Dec 2024 00:00:00 +0000
-Subject: [PATCH] phy: rockchip: add Innosilicon video PHY driver for LVDS/TTL
-
-Add support for the Innosilicon video PHY found in Rockchip SoCs.
-This PHY supports LVDS and TTL output modes and is used by the
-LVDS display controller on RK3568 and other Rockchip SoCs.
-
-The PHY can operate in:
-- TTL mode (parallel RGB)
-- LVDS single channel mode
-- LVDS dual channel mode
-
-Based on Rockchip BSP driver by Wyon Bi.
-
-Signed-off-by: Aaron <aaron@local>
----
- drivers/phy/rockchip/Kconfig                    |  10 ++
- drivers/phy/rockchip/Makefile                   |   1 +
- drivers/phy/rockchip/phy-rockchip-inno-video-phy.c | 260 +++++++++++++++++++++
- 3 files changed, 271 insertions(+)
- create mode 100644 drivers/phy/rockchip/phy-rockchip-inno-video-phy.c
-
 diff --git a/drivers/phy/rockchip/Kconfig b/drivers/phy/rockchip/Kconfig
-index 1xxxxx..2xxxxx 100644
+index 2f7a05f21..4684003be 100644
 --- a/drivers/phy/rockchip/Kconfig
 +++ b/drivers/phy/rockchip/Kconfig
-@@ -90,6 +90,16 @@ config PHY_ROCKCHIP_INNO_DSIDPHY
+@@ -66,6 +66,16 @@ config PHY_ROCKCHIP_INNO_DSIDPHY
  	  Enable this to support the Rockchip MIPI/LVDS/TTL PHY with
  	  Innosilicon IP block.
-
+ 
 +config PHY_ROCKCHIP_INNO_VIDEO_PHY
 +	tristate "Rockchip Innosilicon Video PHY driver"
 +	depends on (ARCH_ROCKCHIP || COMPILE_TEST) && OF
@@ -39,27 +16,27 @@ index 1xxxxx..2xxxxx 100644
 +	  output modes and is found in RK3568 and other Rockchip SoCs.
 +	  Required for native LVDS display output.
 +
- config PHY_ROCKCHIP_PCIE
- 	tristate "Rockchip PCIe PHY Driver"
- 	depends on (ARCH_ROCKCHIP && OF) || COMPILE_TEST
+ config PHY_ROCKCHIP_NANENG_COMBO_PHY
+ 	tristate "Rockchip NANENG COMBO PHY Driver"
+ 	depends on ARCH_ROCKCHIP && OF
 diff --git a/drivers/phy/rockchip/Makefile b/drivers/phy/rockchip/Makefile
-index 1xxxxx..2xxxxx 100644
+index 010a824e3..3401a7cff 100644
 --- a/drivers/phy/rockchip/Makefile
 +++ b/drivers/phy/rockchip/Makefile
-@@ -7,6 +7,7 @@ obj-$(CONFIG_PHY_ROCKCHIP_INNO_CSIDPHY)	+= phy-rockchip-inno-csidphy.o
+@@ -6,6 +6,7 @@ obj-$(CONFIG_PHY_ROCKCHIP_INNO_CSIDPHY)	+= phy-rockchip-inno-csidphy.o
  obj-$(CONFIG_PHY_ROCKCHIP_INNO_DSIDPHY)	+= phy-rockchip-inno-dsidphy.o
- obj-$(CONFIG_PHY_ROCKCHIP_INNO_HDMI)	+= phy-rockchip-inno-hdmi-phy.o
+ obj-$(CONFIG_PHY_ROCKCHIP_INNO_HDMI)	+= phy-rockchip-inno-hdmi.o
  obj-$(CONFIG_PHY_ROCKCHIP_INNO_USB2)	+= phy-rockchip-inno-usb2.o
 +obj-$(CONFIG_PHY_ROCKCHIP_INNO_VIDEO_PHY)	+= phy-rockchip-inno-video-phy.o
  obj-$(CONFIG_PHY_ROCKCHIP_NANENG_COMBO_PHY)	+= phy-rockchip-naneng-combphy.o
  obj-$(CONFIG_PHY_ROCKCHIP_PCIE)		+= phy-rockchip-pcie.o
- obj-$(CONFIG_PHY_ROCKCHIP_TYPEC)	+= phy-rockchip-typec.o
+ obj-$(CONFIG_PHY_ROCKCHIP_SAMSUNG_HDPTX)	+= phy-rockchip-samsung-hdptx.o
 diff --git a/drivers/phy/rockchip/phy-rockchip-inno-video-phy.c b/drivers/phy/rockchip/phy-rockchip-inno-video-phy.c
 new file mode 100644
-index 0000000..1111111
+index 000000000..fcf9aa1bc
 --- /dev/null
 +++ b/drivers/phy/rockchip/phy-rockchip-inno-video-phy.c
-@@ -0,0 +1,260 @@
+@@ -0,0 +1,267 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Rockchip Innosilicon Video PHY driver for LVDS/TTL output
@@ -320,12 +297,10 @@ index 0000000..1111111
 +		.of_match_table = inno_video_phy_of_match,
 +	},
 +	.probe = inno_video_phy_probe,
-+	.remove_new = inno_video_phy_remove,
++	.remove = inno_video_phy_remove,
 +};
 +module_platform_driver(inno_video_phy_driver);
 +
 +MODULE_AUTHOR("Wyon Bi <bivvy.bi@rock-chips.com>");
 +MODULE_DESCRIPTION("Rockchip Innosilicon Video PHY driver");
 +MODULE_LICENSE("GPL");
---
-2.34.1

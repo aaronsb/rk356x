@@ -12,43 +12,15 @@ Based on Rockchip BSP kernel implementation.
 
 Signed-off-by: Aaron <aaron@example.com>
 ---
- drivers/gpu/drm/rockchip/rockchip_lvds.c | 120 +++++++++++++++++++++++
- drivers/gpu/drm/rockchip/rockchip_lvds.h |  18 ++++
- 2 files changed, 138 insertions(+)
+ drivers/gpu/drm/rockchip/rockchip_lvds.c | 138 +++++++++++++++++++++++
+ drivers/gpu/drm/rockchip/rockchip_lvds.h |  19 ++++
+ 2 files changed, 157 insertions(+)
 
-diff --git a/drivers/gpu/drm/rockchip/rockchip_lvds.h b/drivers/gpu/drm/rockchip/rockchip_lvds.h
-index XXXXXXX..XXXXXXX 100644
---- a/drivers/gpu/drm/rockchip/rockchip_lvds.h
-+++ b/drivers/gpu/drm/rockchip/rockchip_lvds.h
-@@ -120,4 +120,22 @@
- #define   PX30_LVDS_P2S_EN(val)			HIWORD_UPDATE(val,  6,  6)
- #define   PX30_LVDS_VOP_SEL(val)		HIWORD_UPDATE(val,  1,  1)
-
-+/* RK3568 GRF register offsets and bits */
-+#define RK3568_GRF_VO_CON0		0x0360
-+#define   RK3568_LVDS1_SELECT(x)	HIWORD_UPDATE(x, 13, 12)
-+#define   RK3568_LVDS1_MSBSEL(x)	HIWORD_UPDATE(x, 11, 11)
-+#define   RK3568_LVDS0_SELECT(x)	HIWORD_UPDATE(x,  5,  4)
-+#define   RK3568_LVDS0_MSBSEL(x)	HIWORD_UPDATE(x,  3,  3)
-+
-+#define RK3568_GRF_VO_CON2		0x0368
-+#define   RK3568_LVDS0_DCLK_INV_SEL(x)	HIWORD_UPDATE(x,  9,  9)
-+#define   RK3568_LVDS0_DCLK_DIV2_SEL(x)	HIWORD_UPDATE(x,  8,  8)
-+#define   RK3568_LVDS0_MODE_EN(x)	HIWORD_UPDATE(x,  1,  1)
-+#define   RK3568_LVDS0_P2S_EN(x)	HIWORD_UPDATE(x,  0,  0)
-+
-+#define RK3568_GRF_VO_CON3		0x036c
-+#define   RK3568_LVDS1_DCLK_INV_SEL(x)	HIWORD_UPDATE(x,  9,  9)
-+#define   RK3568_LVDS1_DCLK_DIV2_SEL(x)	HIWORD_UPDATE(x,  8,  8)
-+#define   RK3568_LVDS1_MODE_EN(x)	HIWORD_UPDATE(x,  1,  1)
-+#define   RK3568_LVDS1_P2S_EN(x)	HIWORD_UPDATE(x,  0,  0)
-+
- #endif /* _ROCKCHIP_LVDS_ */
 diff --git a/drivers/gpu/drm/rockchip/rockchip_lvds.c b/drivers/gpu/drm/rockchip/rockchip_lvds.c
-index XXXXXXX..XXXXXXX 100644
+index 9a01aa450..a2e3f7ba4 100644
 --- a/drivers/gpu/drm/rockchip/rockchip_lvds.c
 +++ b/drivers/gpu/drm/rockchip/rockchip_lvds.c
-@@ -48,6 +48,7 @@ struct rockchip_lvds_soc_data {
+@@ -46,6 +46,7 @@ struct rockchip_lvds_soc_data {
 
  struct rockchip_lvds {
  	struct device *dev;
@@ -56,7 +28,7 @@ index XXXXXXX..XXXXXXX 100644
  	void __iomem *regs;
  	struct regmap *grf;
  	struct clk *pclk;
-@@ -520,6 +521,117 @@ static const struct rockchip_lvds_soc_data px30_lvds_data = {
+@@ -527,6 +528,135 @@ static const struct rockchip_lvds_soc_data px30_lvds_data = {
  	.helper_funcs = &px30_lvds_encoder_helper_funcs,
  };
 
@@ -160,14 +132,26 @@ index XXXXXXX..XXXXXXX 100644
 +static const struct drm_encoder_helper_funcs rk3568_lvds_encoder_helper_funcs = {
 +	.enable = rk3568_lvds_encoder_enable,
 +	.disable = rk3568_lvds_encoder_disable,
++	.atomic_check = rockchip_lvds_encoder_atomic_check,
 +};
 +
 +static int rk3568_lvds_probe(struct platform_device *pdev,
 +			     struct rockchip_lvds *lvds)
 +{
++	int ret;
++
 +	lvds->id = of_alias_get_id(pdev->dev.of_node, "lvds");
 +	if (lvds->id < 0)
 +		lvds->id = 0;
++
++	/* PHY */
++	lvds->dphy = devm_phy_get(&pdev->dev, "dphy");
++	if (IS_ERR(lvds->dphy))
++		return PTR_ERR(lvds->dphy);
++
++	ret = phy_init(lvds->dphy);
++	if (ret)
++		return ret;
 +
 +	return 0;
 +}
@@ -180,14 +164,42 @@ index XXXXXXX..XXXXXXX 100644
  static const struct of_device_id rockchip_lvds_dt_ids[] = {
  	{
  		.compatible = "rockchip,rk3288-lvds",
-@@ -528,6 +640,10 @@ static const struct of_device_id rockchip_lvds_dt_ids[] = {
- 	{
+@@ -536,6 +666,10 @@ static const struct of_device_id rockchip_lvds_dt_ids[] = {
  		.compatible = "rockchip,px30-lvds",
  		.data = &px30_lvds_data
-+	},
+ 	},
 +	{
 +		.compatible = "rockchip,rk3568-lvds",
 +		.data = &rk3568_lvds_data
- 	},
++	},
  	{}
  };
+ MODULE_DEVICE_TABLE(of, rockchip_lvds_dt_ids);
+diff --git a/drivers/gpu/drm/rockchip/rockchip_lvds.h b/drivers/gpu/drm/rockchip/rockchip_lvds.h
+index 4ce967d23..ed6dd1708 100644
+--- a/drivers/gpu/drm/rockchip/rockchip_lvds.h
++++ b/drivers/gpu/drm/rockchip/rockchip_lvds.h
+@@ -120,4 +120,23 @@
+ #define   PX30_LVDS_P2S_EN(val)			HIWORD_UPDATE(val,  6,  6)
+ #define   PX30_LVDS_VOP_SEL(val)		HIWORD_UPDATE(val,  1,  1)
+
++/* RK3568 GRF register offsets and bits */
++#define RK3568_GRF_VO_CON0		0x0360
++#define   RK3568_LVDS1_SELECT(x)	HIWORD_UPDATE(x, 13, 12)
++#define   RK3568_LVDS1_MSBSEL(x)	HIWORD_UPDATE(x, 11, 11)
++#define   RK3568_LVDS0_SELECT(x)	HIWORD_UPDATE(x,  5,  4)
++#define   RK3568_LVDS0_MSBSEL(x)	HIWORD_UPDATE(x,  3,  3)
++
++#define RK3568_GRF_VO_CON2		0x0368
++#define   RK3568_LVDS0_DCLK_INV_SEL(x)	HIWORD_UPDATE(x,  9,  9)
++#define   RK3568_LVDS0_DCLK_DIV2_SEL(x)	HIWORD_UPDATE(x,  8,  8)
++#define   RK3568_LVDS0_MODE_EN(x)	HIWORD_UPDATE(x,  1,  1)
++#define   RK3568_LVDS0_P2S_EN(x)	HIWORD_UPDATE(x,  0,  0)
++
++#define RK3568_GRF_VO_CON3		0x036c
++#define   RK3568_LVDS1_DCLK_INV_SEL(x)	HIWORD_UPDATE(x,  9,  9)
++#define   RK3568_LVDS1_DCLK_DIV2_SEL(x)	HIWORD_UPDATE(x,  8,  8)
++#define   RK3568_LVDS1_MODE_EN(x)	HIWORD_UPDATE(x,  1,  1)
++#define   RK3568_LVDS1_P2S_EN(x)	HIWORD_UPDATE(x,  0,  0)
++
+ #endif /* _ROCKCHIP_LVDS_ */
