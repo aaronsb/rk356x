@@ -585,32 +585,26 @@
 	};
 };
 
-/* VP1 for DSI output */
+/* VP1 for DSI output - disabled until panel driver ready */
+/*
 &vp1 {
 	vp1_out_dsi0: endpoint@ROCKCHIP_VOP2_EP_MIPI0 {
 		reg = <ROCKCHIP_VOP2_EP_MIPI0>;
 		remote-endpoint = <&dsi0_in_vp1>;
 	};
 };
+*/
 
 /* DSI0 for LVDS panel via GM8775C bridge
- * Note: Panel driver TBD - just testing DSI controller init
+ * Currently disabled - needs panel driver for full pipeline
+ * Enabling without panel breaks display-subsystem binding
  */
 &dsi0 {
-	status = "okay";
-
-	ports {
-		dsi0_in: port@0 {
-			reg = <0>;
-			dsi0_in_vp1: endpoint {
-				remote-endpoint = <&vp1_out_dsi0>;
-			};
-		};
-	};
+	status = "disabled";
 };
 
 &dsi_dphy0 {
-	status = "okay";
+	status = "disabled";
 };
 
 /* Additional I2C buses for peripherals */
