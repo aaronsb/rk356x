@@ -124,7 +124,7 @@
 		compatible = "rockchip,rk3568-lvds";
 		rockchip,grf = <&grf>;
 		phys = <&video_phy>;
-		phy-names = "phy";
+		phy-names = "dphy";
 		status = "okay";
 
 		ports {
