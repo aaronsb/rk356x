@@ -416,6 +416,20 @@
 	};
 };
 
+/* I2C2 - LVDS bridge (GM8775C MIPI-to-LVDS) */
+&i2c2 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c2m1_xfer>;
+
+	/* GM8775C MIPI DSI to LVDS bridge */
+	gm8775c: bridge@2c {
+		compatible = "gm8775c,mipi_to_lvds";
+		reg = <0x2c>;
+		status = "okay";
+	};
+};
+
 /* I2S for HDMI audio */
 &i2s0_8ch {
 	status = "okay";
