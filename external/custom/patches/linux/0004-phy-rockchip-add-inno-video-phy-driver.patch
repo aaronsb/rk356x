@@ -1,0 +1,331 @@
+From: Aaron <aaron@local>
+Date: Sun, 29 Dec 2024 00:00:00 +0000
+Subject: [PATCH] phy: rockchip: add Innosilicon video PHY driver for LVDS/TTL
+
+Add support for the Innosilicon video PHY found in Rockchip SoCs.
+This PHY supports LVDS and TTL output modes and is used by the
+LVDS display controller on RK3568 and other Rockchip SoCs.
+
+The PHY can operate in:
+- TTL mode (parallel RGB)
+- LVDS single channel mode
+- LVDS dual channel mode
+
+Based on Rockchip BSP driver by Wyon Bi.
+
+Signed-off-by: Aaron <aaron@local>
+---
+ drivers/phy/rockchip/Kconfig                    |  10 ++
+ drivers/phy/rockchip/Makefile                   |   1 +
+ drivers/phy/rockchip/phy-rockchip-inno-video-phy.c | 260 +++++++++++++++++++++
+ 3 files changed, 271 insertions(+)
+ create mode 100644 drivers/phy/rockchip/phy-rockchip-inno-video-phy.c
+
+diff --git a/drivers/phy/rockchip/Kconfig b/drivers/phy/rockchip/Kconfig
+index 1xxxxx..2xxxxx 100644
+--- a/drivers/phy/rockchip/Kconfig
++++ b/drivers/phy/rockchip/Kconfig
+@@ -90,6 +90,16 @@ config PHY_ROCKCHIP_INNO_DSIDPHY
+ 	  Enable this to support the Rockchip MIPI/LVDS/TTL PHY with
+ 	  Innosilicon IP block.
+
++config PHY_ROCKCHIP_INNO_VIDEO_PHY
++	tristate "Rockchip Innosilicon Video PHY driver"
++	depends on (ARCH_ROCKCHIP || COMPILE_TEST) && OF
++	select GENERIC_PHY
++	help
++	  Enable this to support the Rockchip video output PHY with
++	  Innosilicon IP block. This PHY supports LVDS and TTL display
++	  output modes and is found in RK3568 and other Rockchip SoCs.
++	  Required for native LVDS display output.
++
+ config PHY_ROCKCHIP_PCIE
+ 	tristate "Rockchip PCIe PHY Driver"
+ 	depends on (ARCH_ROCKCHIP && OF) || COMPILE_TEST
+diff --git a/drivers/phy/rockchip/Makefile b/drivers/phy/rockchip/Makefile
+index 1xxxxx..2xxxxx 100644
+--- a/drivers/phy/rockchip/Makefile
++++ b/drivers/phy/rockchip/Makefile
+@@ -7,6 +7,7 @@ obj-$(CONFIG_PHY_ROCKCHIP_INNO_CSIDPHY)	+= phy-rockchip-inno-csidphy.o
+ obj-$(CONFIG_PHY_ROCKCHIP_INNO_DSIDPHY)	+= phy-rockchip-inno-dsidphy.o
+ obj-$(CONFIG_PHY_ROCKCHIP_INNO_HDMI)	+= phy-rockchip-inno-hdmi-phy.o
+ obj-$(CONFIG_PHY_ROCKCHIP_INNO_USB2)	+= phy-rockchip-inno-usb2.o
++obj-$(CONFIG_PHY_ROCKCHIP_INNO_VIDEO_PHY)	+= phy-rockchip-inno-video-phy.o
+ obj-$(CONFIG_PHY_ROCKCHIP_NANENG_COMBO_PHY)	+= phy-rockchip-naneng-combphy.o
+ obj-$(CONFIG_PHY_ROCKCHIP_PCIE)		+= phy-rockchip-pcie.o
+ obj-$(CONFIG_PHY_ROCKCHIP_TYPEC)	+= phy-rockchip-typec.o
+diff --git a/drivers/phy/rockchip/phy-rockchip-inno-video-phy.c b/drivers/phy/rockchip/phy-rockchip-inno-video-phy.c
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/drivers/phy/rockchip/phy-rockchip-inno-video-phy.c
+@@ -0,0 +1,260 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Rockchip Innosilicon Video PHY driver for LVDS/TTL output
++ *
++ * Copyright (c) 2018 Rockchip Electronics Co., Ltd.
++ * Copyright (c) 2024 Local modifications for RK3568 support
++ *
++ * Author: Wyon Bi <bivvy.bi@rock-chips.com>
++ */
++
++#include <linux/kernel.h>
++#include <linux/clk.h>
++#include <linux/delay.h>
++#include <linux/init.h>
++#include <linux/module.h>
++#include <linux/of_device.h>
++#include <linux/platform_device.h>
++#include <linux/regmap.h>
++#include <linux/reset.h>
++#include <linux/phy/phy.h>
++#include <linux/pm_runtime.h>
++
++#define INNO_VIDEO_PHY_PLL_CTRL		0x0030
++#define   PLL_DISABLE			BIT(3)
++
++#define INNO_VIDEO_PHY_PLL_STS		0x003c
++#define   PLL_LOCK			BIT(1)
++
++#define INNO_VIDEO_PHY_TX_CTRL		0x0084
++#define   TX_ENABLE			BIT(7)
++
++struct inno_video_phy {
++	struct device *dev;
++	struct clk *pclk;
++	struct regmap *regmap;
++	struct reset_control *rst;
++};
++
++/* TTL (parallel RGB) mode register sequence */
++static const struct reg_sequence ttl_mode_regs[] = {
++	{ 0x0000, 0x7f },
++	{ 0x0004, 0x3f },
++	{ 0x0008, 0x80 },
++	{ 0x0010, 0x3f },
++	{ 0x0014, 0x3f },
++	{ 0x0080, 0x44 },
++	/* Second channel */
++	{ 0x0100, 0x7f },
++	{ 0x0104, 0x3f },
++	{ 0x0108, 0x80 },
++	{ 0x0110, 0x3f },
++	{ 0x0114, 0x3f },
++	{ 0x0180, 0x44 },
++};
++
++/* LVDS single channel mode register sequence */
++static const struct reg_sequence lvds_single_ch_regs[] = {
++	{ 0x0000, 0xbf },
++	{ 0x0004, 0x3f },
++	{ 0x0008, 0xfe },
++	{ 0x0010, 0x00 },
++	{ 0x0014, 0x00 },
++	{ 0x0080, 0x44 },
++	/* Second channel disabled */
++	{ 0x0100, 0x00 },
++	{ 0x0104, 0x00 },
++	{ 0x0108, 0x00 },
++	{ 0x0110, 0x00 },
++	{ 0x0114, 0x00 },
++	{ 0x0180, 0x44 },
++};
++
++/* LVDS dual channel mode register sequence */
++static const struct reg_sequence lvds_dual_ch_regs[] = {
++	{ 0x0000, 0xbf },
++	{ 0x0004, 0x3f },
++	{ 0x0008, 0xfe },
++	{ 0x0010, 0x00 },
++	{ 0x0014, 0x00 },
++	{ 0x0080, 0x44 },
++	/* Second channel enabled */
++	{ 0x0100, 0xbf },
++	{ 0x0104, 0x3f },
++	{ 0x0108, 0xfe },
++	{ 0x0110, 0x00 },
++	{ 0x0114, 0x00 },
++	{ 0x0180, 0x44 },
++};
++
++static int inno_video_phy_power_on(struct phy *phy)
++{
++	struct inno_video_phy *inno = phy_get_drvdata(phy);
++	enum phy_mode mode = phy_get_mode(phy);
++	const struct reg_sequence *regs;
++	bool dual_channel;
++	int nregs;
++	u32 status;
++	int ret;
++
++	ret = clk_prepare_enable(inno->pclk);
++	if (ret)
++		return ret;
++
++	pm_runtime_get_sync(inno->dev);
++
++	/* Select register sequence based on PHY mode */
++	dual_channel = phy_get_bus_width(phy) == 2;
++
++	switch (mode) {
++	case PHY_MODE_LVDS:
++		if (dual_channel) {
++			regs = lvds_dual_ch_regs;
++			nregs = ARRAY_SIZE(lvds_dual_ch_regs);
++		} else {
++			regs = lvds_single_ch_regs;
++			nregs = ARRAY_SIZE(lvds_single_ch_regs);
++		}
++		break;
++	default:
++		/* Default to TTL mode */
++		regs = ttl_mode_regs;
++		nregs = ARRAY_SIZE(ttl_mode_regs);
++		break;
++	}
++
++	regmap_multi_reg_write(inno->regmap, regs, nregs);
++
++	/* Enable PLL and wait for lock */
++	regmap_update_bits(inno->regmap, INNO_VIDEO_PHY_PLL_CTRL,
++			   PLL_DISABLE, 0);
++
++	ret = regmap_read_poll_timeout(inno->regmap, INNO_VIDEO_PHY_PLL_STS,
++				       status, status & PLL_LOCK, 50, 5000);
++	if (ret) {
++		dev_err(inno->dev, "PLL failed to lock\n");
++		goto err_pll;
++	}
++
++	/* Enable TX */
++	regmap_update_bits(inno->regmap, INNO_VIDEO_PHY_TX_CTRL,
++			   TX_ENABLE, TX_ENABLE);
++
++	return 0;
++
++err_pll:
++	pm_runtime_put(inno->dev);
++	clk_disable_unprepare(inno->pclk);
++	return ret;
++}
++
++static int inno_video_phy_power_off(struct phy *phy)
++{
++	struct inno_video_phy *inno = phy_get_drvdata(phy);
++
++	/* Disable TX */
++	regmap_update_bits(inno->regmap, INNO_VIDEO_PHY_TX_CTRL, TX_ENABLE, 0);
++
++	/* Disable PLL */
++	regmap_update_bits(inno->regmap, INNO_VIDEO_PHY_PLL_CTRL,
++			   PLL_DISABLE, PLL_DISABLE);
++
++	pm_runtime_put(inno->dev);
++	clk_disable_unprepare(inno->pclk);
++
++	return 0;
++}
++
++static int inno_video_phy_set_mode(struct phy *phy, enum phy_mode mode,
++				   int submode)
++{
++	/* Mode is applied during power_on */
++	return 0;
++}
++
++static const struct phy_ops inno_video_phy_ops = {
++	.set_mode = inno_video_phy_set_mode,
++	.power_on = inno_video_phy_power_on,
++	.power_off = inno_video_phy_power_off,
++	.owner = THIS_MODULE,
++};
++
++static const struct regmap_config inno_video_phy_regmap_config = {
++	.reg_bits = 32,
++	.val_bits = 32,
++	.reg_stride = 4,
++	.max_register = 0x0180,
++};
++
++static int inno_video_phy_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct inno_video_phy *inno;
++	struct phy *phy;
++	struct phy_provider *phy_provider;
++	void __iomem *regs;
++
++	inno = devm_kzalloc(dev, sizeof(*inno), GFP_KERNEL);
++	if (!inno)
++		return -ENOMEM;
++
++	inno->dev = dev;
++	platform_set_drvdata(pdev, inno);
++
++	regs = devm_platform_ioremap_resource(pdev, 0);
++	if (IS_ERR(regs))
++		return PTR_ERR(regs);
++
++	inno->regmap = devm_regmap_init_mmio(dev, regs,
++					     &inno_video_phy_regmap_config);
++	if (IS_ERR(inno->regmap))
++		return dev_err_probe(dev, PTR_ERR(inno->regmap),
++				     "failed to init regmap\n");
++
++	inno->pclk = devm_clk_get(dev, "pclk");
++	if (IS_ERR(inno->pclk))
++		return dev_err_probe(dev, PTR_ERR(inno->pclk),
++				     "failed to get pclk\n");
++
++	inno->rst = devm_reset_control_get_optional(dev, "rst");
++	if (IS_ERR(inno->rst))
++		return dev_err_probe(dev, PTR_ERR(inno->rst),
++				     "failed to get reset\n");
++
++	phy = devm_phy_create(dev, NULL, &inno_video_phy_ops);
++	if (IS_ERR(phy))
++		return dev_err_probe(dev, PTR_ERR(phy),
++				     "failed to create PHY\n");
++
++	phy_set_drvdata(phy, inno);
++
++	phy_provider = devm_of_phy_provider_register(dev, of_phy_simple_xlate);
++	if (IS_ERR(phy_provider))
++		return dev_err_probe(dev, PTR_ERR(phy_provider),
++				     "failed to register PHY provider\n");
++
++	pm_runtime_enable(dev);
++
++	dev_info(dev, "Innosilicon video PHY registered\n");
++
++	return 0;
++}
++
++static void inno_video_phy_remove(struct platform_device *pdev)
++{
++	pm_runtime_disable(&pdev->dev);
++}
++
++static const struct of_device_id inno_video_phy_of_match[] = {
++	{ .compatible = "rockchip,rk3568-video-phy" },
++	{ .compatible = "rockchip,rk3288-video-phy" },
++	{ /* sentinel */ }
++};
++MODULE_DEVICE_TABLE(of, inno_video_phy_of_match);
++
++static struct platform_driver inno_video_phy_driver = {
++	.driver = {
++		.name = "rockchip-inno-video-phy",
++		.of_match_table = inno_video_phy_of_match,
++	},
++	.probe = inno_video_phy_probe,
++	.remove_new = inno_video_phy_remove,
++};
++module_platform_driver(inno_video_phy_driver);
++
++MODULE_AUTHOR("Wyon Bi <bivvy.bi@rock-chips.com>");
++MODULE_DESCRIPTION("Rockchip Innosilicon Video PHY driver");
++MODULE_LICENSE("GPL");
+--
+2.34.1

@@ -19,6 +19,7 @@
 
 	aliases {
 		ethernet0 = &gmac1;
+		lvds0 = &lvds;
 		mmc0 = &sdhci;
 		mmc1 = &sdmmc0;
 		serial2 = &uart2;
@@ -34,7 +35,120 @@
 		pwms = <&pwm4 0 25000 0>;
 		brightness-levels = <0 64 128 192 255>;
 		default-brightness-level = <3>;
+		enable-gpios = <&gpio0 29 GPIO_ACTIVE_HIGH>;
+		power-supply = <&vcc3v3_lcd1_n>;
 		status = "okay";
+	};
+
+	/* Native LVDS panel - 1024x600 @ 60Hz */
+	panel_lvds: panel-lvds {
+		compatible = "panel-lvds";
+		backlight = <&backlight>;
+		power-supply = <&vcc3v3_lcd1_n>;
+		data-mapping = "vesa-24";
+		width-mm = <217>;
+		height-mm = <136>;
+		status = "okay";
+
+		panel-timing {
+			clock-frequency = <66000000>;
+			hactive = <1024>;
+			vactive = <600>;
+			hback-porch = <200>;
+			hfront-porch = <110>;
+			vback-porch = <20>;
+			vfront-porch = <13>;
+			hsync-len = <10>;
+			vsync-len = <2>;
+			hsync-active = <0>;
+			vsync-active = <0>;
+			de-active = <0>;
+			pixelclk-active = <0>;
+		};
+
+		port {
+			panel_in_lvds: endpoint {
+				remote-endpoint = <&lvds_out_panel>;
+			};
+		};
+	};
+
+	/* LCD panel power supply - GPIO0_PC5 (gpio0-21) */
+	vcc3v3_lcd1_n: vcc3v3-lcd1-n {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc3v3_lcd1_n";
+		regulator-boot-on;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		enable-active-high;
+		gpio = <&gpio0 RK_PC5 GPIO_ACTIVE_HIGH>;
+		vin-supply = <&vcc3v3_sys>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&lcd1_pwr_en>;
+	};
+
+	/* TC358775 bridge 1.2V power - GPIO0_PB0 (gpio0-8) */
+	/* Disabled - using native LVDS instead of DSI->bridge */
+	vcc1v2_tc358775: vcc-tc358775-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_tc358775";
+		enable-active-high;
+		gpio = <&gpio0 RK_PB0 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&tc358775_pwr>;
+		status = "disabled";
+	};
+
+	/*
+	 * RK3568 Video PHY for LVDS output
+	 * Innosilicon PHY that supports LVDS and TTL modes
+	 * Note: Shares PHY hardware with DSI DPHY0
+	 */
+	video_phy: video-phy@fe850000 {
+		compatible = "rockchip,rk3568-video-phy";
+		reg = <0x0 0xfe850000 0x0 0x10000>;
+		clocks = <&cru PCLK_DSITX_0>;
+		clock-names = "pclk";
+		resets = <&cru SRST_P_DSITX_0>;
+		reset-names = "rst";
+		#phy-cells = <0>;
+		status = "okay";
+	};
+
+	/*
+	 * RK3568 Native LVDS controller
+	 * Uses Video PHY in LVDS mode, configured via GRF registers
+	 * Note: This is not in mainline rk3568.dtsi - added via local patch
+	 */
+	lvds: lvds {
+		compatible = "rockchip,rk3568-lvds";
+		rockchip,grf = <&grf>;
+		phys = <&video_phy>;
+		phy-names = "phy";
+		status = "okay";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			/* Input from VOP VP1 */
+			port@0 {
+				reg = <0>;
+
+				lvds_in_vp1: endpoint {
+					remote-endpoint = <&vp1_out_lvds>;
+				};
+			};
+
+			/* Output to panel */
+			port@1 {
+				reg = <1>;
+
+				lvds_out_panel: endpoint {
+					remote-endpoint = <&panel_in_lvds>;
+				};
+			};
+		};
 	};
 
 	/* HDMI connector */
@@ -432,17 +546,49 @@
 	pinctrl-0 = <&i2c1_xfer>;
 };
 
-/* I2C2 - LVDS bridge (GM8775C MIPI-to-LVDS) */
+/* I2C2 - LVDS bridges (TC358775 + GM8775C) */
 &i2c2 {
 	status = "okay";
 	pinctrl-names = "default";
 	pinctrl-0 = <&i2c2m1_xfer>;
 
-	/* GM8775C MIPI DSI to LVDS bridge */
+	/* Toshiba TC358775 DSI-to-LVDS bridge - has mainline driver */
+	/* Disabled - chip not responding on I2C, using native LVDS instead */
+	tc358775: bridge@0f {
+		compatible = "toshiba,tc358775";
+		reg = <0x0f>;
+		vdd-supply = <&vcc1v2_tc358775>;
+		vddio-supply = <&vcc_1v8>;
+		reset-gpios = <&gpio3 RK_PD5 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&tc358775_rst>;
+		status = "disabled";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				tc358775_dsi_in: endpoint {
+					/* Will connect to DSI0 output when enabled */
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				tc358775_lvds_out: endpoint {
+					/* Will connect to LVDS panel */
+				};
+			};
+		};
+	};
+
+	/* GM8775C MIPI DSI to LVDS bridge - no mainline driver */
 	gm8775c: bridge@2c {
 		compatible = "gm8775c,mipi_to_lvds";
 		reg = <0x2c>;
-		status = "okay";
+		status = "disabled";  /* No mainline driver available */
 	};
 };
 
@@ -466,6 +612,27 @@
 
 		vcc5v0_otg_en: vcc5v0-otg-en {
 			rockchip,pins = <0 RK_PA5 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	/* Display-related GPIO pinctrl */
+	lcd {
+		lcd1_pwr_en: lcd1-pwr-en {
+			rockchip,pins = <0 RK_PC5 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		lcd_rst: lcd-rst {
+			rockchip,pins = <0 RK_PA0 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	tc358775 {
+		tc358775_pwr: tc358775-pwr {
+			rockchip,pins = <0 RK_PB0 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		tc358775_rst: tc358775-rst {
+			rockchip,pins = <3 RK_PD5 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 };
@@ -585,26 +752,24 @@
 	};
 };
 
-/* VP1 for DSI output - disabled until panel driver ready */
-/*
+/* VP1 for LVDS output - native LVDS path */
 &vp1 {
-	vp1_out_dsi0: endpoint@ROCKCHIP_VOP2_EP_MIPI0 {
-		reg = <ROCKCHIP_VOP2_EP_MIPI0>;
-		remote-endpoint = <&dsi0_in_vp1>;
+	vp1_out_lvds: endpoint@ROCKCHIP_VOP2_EP_LVDS0 {
+		reg = <ROCKCHIP_VOP2_EP_LVDS0>;
+		remote-endpoint = <&lvds_in_vp1>;
 	};
 };
-*/
 
-/* DSI0 for LVDS panel via GM8775C bridge
- * Currently disabled - needs panel driver for full pipeline
- * Enabling without panel breaks display-subsystem binding
- */
+/* DSI0 disabled - using native LVDS instead */
 &dsi0 {
 	status = "disabled";
 };
 
+/* DSI PHY enabled for LVDS mode
+ * The LVDS controller uses the DSI PHY in LVDS mode for serialization
+ */
 &dsi_dphy0 {
-	status = "disabled";
+	status = "okay";
 };
 
 /* Additional I2C buses for peripherals */
