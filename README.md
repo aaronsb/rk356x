@@ -1,12 +1,12 @@
 # RK356X Embedded Linux Build System
 
-**Complete build system for RK356X (RK3566/RK3568) boards with Debian/Ubuntu, mainline U-Boot, and open-source GPU drivers.**
+Complete build system for RK356X (RK3566/RK3568) boards with Debian 12, mainline kernel and U-Boot, and open-source Panfrost GPU drivers.
 
-This project provides a production-ready Debian-based Linux system for RK356x ARM64 boards, featuring modern components and full desktop support with hardware acceleration.
+This project provides a production-ready Debian-based Linux system for RK356x ARM64 boards, featuring a modern Wayland desktop with hardware-accelerated graphics.
 
 ---
 
-## 🎯 Quick Start
+## Quick Start
 
 ```bash
 # Clone with submodules (vendor blobs required)
@@ -17,170 +17,212 @@ cd rk356x
 ./build.sh
 
 # Or build components individually
-./scripts/build-kernel.sh          # Kernel 6.1 with custom DTBs
+./scripts/build-kernel.sh          # Kernel 6.12 with custom DTBs
 ./scripts/build-debian-rootfs.sh   # Debian 12 rootfs
 ./scripts/assemble-debian-image.sh # Create bootable SD card image
 ```
 
-**Find your image:** `output/rk3568-debian-*.img.xz`
+Output image location: `output/rk3568-debian-*.img.xz`
 
-**Flash to SD card:**
+Flash to SD card:
 ```bash
 xzcat output/rk3568-debian-*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress
 ```
 
+Default credentials: `rock` / `rock`
+
 ---
 
-## 📦 What You Get
+## System Components
 
 | Component | Version | Description |
 |-----------|---------|-------------|
-| **U-Boot** | Mainline (2024.10+) | From denx.de, supports SD card and eMMC boot |
-| **Linux Kernel** | 6.1 LTS (Rockchip BSP) | Custom DTBs, MAXIO PHY driver, display support, Panfrost GPU |
-| **GPU Driver** | Panfrost (Mesa) | Open-source Mali-G52 driver with desktop OpenGL 3.1 |
-| **Root Filesystem** | Debian 12 (bookworm) | Pure Debian with XFCE desktop, chromium, and kernel 6.1 |
-| **Init System** | systemd | Modern init with networking and services |
-
-**Desktop Environment:**
-- ✅ XFCE4 with hardware-accelerated rendering
-- ✅ LightDM display manager
-- ✅ Full GTK3 application support
-- ✅ Chromium browser (hardware accelerated)
-- ✅ 1920x1080 HDMI output
+| U-Boot | Mainline 2024.10+ | Community-maintained, SD/eMMC boot support |
+| Linux Kernel | 6.12 Mainline | Custom DTBs, Panfrost GPU, display subsystem |
+| GPU Driver | Panfrost (Mesa) | Open-source Mali-G52, desktop OpenGL 3.1 |
+| Root Filesystem | Debian 12 (bookworm) | LTS until June 2028 |
+| Desktop | Wayland + sway | Tiling compositor, hardware accelerated |
+| Browsers | Firefox ESR, Chromium | Both with WebGL support |
+| Init System | systemd | Networking and service management |
 
 ---
 
-## 🔧 Supported Boards
+## Supported Boards
 
-| Board | Status | Notes |
-|-------|--------|-------|
-| **SZ3568-V1.2** | ✅ Fully working | RGMII ethernet (MAXIO PHY), Mali-G52 GPU, HDMI 1080p |
-| **DC-A568-V06** | ⚠️ Legacy | See `boards/dc-a568-v06/` - Buildroot-based (deprecated) |
+| Board | Status | Ethernet | Display | Notes |
+|-------|--------|----------|---------|-------|
+| SZ3568-V1.2 | Fully working | RGMII (MAXIO PHY) | HDMI 1080p | Primary development board |
+| DC-A568-V06 | Legacy | RMII | HDMI | Buildroot-based, deprecated |
 
-**The build system supports multiple boards and profiles:**
+### Building for Specific Boards
+
 ```bash
-# Build for specific board
+# SZ3568 board (default)
 ./scripts/build-kernel.sh rk3568_sz3568
-./scripts/build-kernel.sh rk3568_custom  # DC-A568 board
 
-# Choose rootfs profile
-PROFILE=minimal ./scripts/build-debian-rootfs.sh  # Lightweight (default)
-PROFILE=full ./scripts/build-debian-rootfs.sh     # Full desktop packages
+# DC-A568 board
+./scripts/build-kernel.sh rk3568_custom
 ```
 
-**Adding new boards:**
-1. Add device tree to `external/custom/board/rk3568/dts/rockchip/`
-2. Add board case to `scripts/build-kernel.sh`
-3. Create board-specific config in `boards/your-board/`
+### Rootfs Profiles
 
-See [README-DEBIAN-BUILD.md](README-DEBIAN-BUILD.md) for details on customization.
-
----
-
-## 📚 Documentation
-
-- **[Debian Build System Guide](README-DEBIAN-BUILD.md)** - Complete build documentation
-- **[Project Context](CLAUDE.md)** - Technical details and configuration
-- **[Legacy Buildroot System](scripts/legacy/)** - Original build system (deprecated)
+```bash
+PROFILE=minimal ./scripts/build-debian-rootfs.sh  # Lightweight (default)
+PROFILE=full ./scripts/build-debian-rootfs.sh     # Full desktop + dev tools
+```
 
 ---
 
-## 🏗️ Build System Features
+## Documentation
 
-- **Docker-based builds** - Reproducible, no host dependencies
-- **Incremental builds** - Only rebuild what changed
-- **Kernel config fragments** - Easy customization without editing defconfig
-- **Custom device trees** - Full hardware support for each board
-- **Package profiles** - Minimal or full rootfs configurations
-- **APT caching** - Fast rebuilds with package cache
+| Document | Description |
+|----------|-------------|
+| [README-DEBIAN-BUILD.md](README-DEBIAN-BUILD.md) | Complete build system guide |
+| [docs/adr/](docs/adr/) | Architecture Decision Records |
+| [CLAUDE.md](CLAUDE.md) | Technical context and configuration |
+| [boards/](boards/) | Board-specific documentation |
+
+### Architecture Decisions
+
+This project uses ADR (Architecture Decision Records) to document significant technical choices. See [docs/adr/README.md](docs/adr/README.md) for the full index.
+
+Current architectural state:
+
+| Decision | Choice | ADR |
+|----------|--------|-----|
+| Build System | Debian 12 + Docker | ADR-0002 |
+| Bootloader | Mainline U-Boot | ADR-0003 |
+| GPU Driver | Panfrost (open-source) | ADR-0004 |
+| Kernel | Mainline 6.12 | ADR-0005 |
+| Desktop | Wayland + sway | ADR-0006 |
 
 ---
 
-## 🚀 Key Technical Highlights
+## Build System Features
+
+The build system provides:
+
+- **Docker-based builds** for reproducibility across host environments
+- **Incremental builds** that only rebuild changed components
+- **Kernel config fragments** for easy customization
+- **Custom device trees** with full hardware support per board
+- **Package profiles** for minimal or full rootfs configurations
+- **APT caching** for faster rebuilds
+
+### Build Times
+
+| Component | Approximate Time |
+|-----------|------------------|
+| Kernel | 15 minutes |
+| Rootfs | 20 minutes |
+| Image assembly | 5 minutes |
+| **Total** | **30-45 minutes** |
+
+---
+
+## Technical Details
 
 ### Mainline U-Boot
-Using mainline U-Boot (not Rockchip fork) for better SD card boot support and community maintenance.
+
+Using mainline U-Boot from denx.de rather than the Rockchip fork provides:
+
+- Better community support and documentation
+- Clean integration with mainline kernel
+- Standard boot flow that works with both SD card and eMMC
 
 ### Panfrost GPU Driver
-Switched from proprietary Mali blob to open-source Panfrost for desktop OpenGL support. This enables:
-- GTK3 desktop applications
-- Hardware-accelerated graphics
+
+The open-source Panfrost driver (via Mesa) replaced the proprietary Mali blob to enable:
+
+- Desktop OpenGL 3.1 (not just OpenGL ES)
+- Hardware-accelerated Wayland compositing
+- WebGL in Firefox and Chromium
 - Standard Mesa/DRI stack compatibility
 
-### Rockchip Kernel 6.1 LTS
-Based on Rockchip's BSP kernel (LTS until Dec 2026) with proven Panfrost support:
-- Custom device trees for each board
-- MAXIO MAE0621A Gigabit PHY driver
-- Display subsystem with HDMI support
-- Mali-G52 GPU via open-source Panfrost driver
-- Hardware-accelerated OpenGL 3.1 for desktop applications
+### Mainline Kernel 6.12
 
-### Debian 12 (bookworm)
-Pure Debian rootfs provides:
-- Perfect kernel match (Debian 12 ships with kernel 6.1)
-- Standard package management (apt)
-- Long-term support (LTS until June 2028)
-- Large software repository with native chromium
-- Easy desktop environment setup
-- No repository mixing required
+After experimenting with Rockchip BSP kernels, mainline 6.12 was selected for:
+
+- Best Panfrost GPU support
+- Clean device tree integration
+- Active community development
+- Long-term maintainability
+
+Custom patches are minimal (DMA reset timeout for MAXIO PHY only).
+
+### Wayland Desktop
+
+The switch from X11/XFCE to Wayland/sway provides:
+
+- Lower latency display
+- Better Panfrost integration
+- Reduced resource usage
+- Modern display protocol support
 
 ---
 
-## 🛠️ System Requirements
+## System Requirements
 
 **Host system:**
-- Linux (Ubuntu/Debian recommended)
-- Docker (for containerized builds)
-- ~40GB free disk space
-- 4GB+ RAM
 
-**Build time:** ~30-60 minutes (depending on CPU)
+| Requirement | Minimum |
+|-------------|---------|
+| OS | Linux (Ubuntu/Debian recommended) |
+| Docker | Required for builds |
+| Disk space | 40GB free |
+| RAM | 4GB+ |
 
 ---
 
-## 📝 Quick Build Example
+## Directory Structure
 
-```bash
-# Full automated build
-./build.sh
-
-# Or step-by-step
-./scripts/build-kernel.sh rk3568_sz3568          # ~15 min
-./scripts/build-debian-rootfs.sh                 # ~20 min
-./scripts/assemble-debian-image.sh rk3568_sz3568 # ~5 min
-
-# Flash to SD card
-xzcat output/rk3568-debian-*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress
-sync
+```
+rk356x/
+├── build.sh                 # Main build orchestrator
+├── scripts/                 # Build scripts
+│   ├── build-kernel.sh
+│   ├── build-debian-rootfs.sh
+│   ├── build-uboot.sh
+│   └── assemble-debian-image.sh
+├── external/custom/         # Board customizations
+│   └── board/rk3568/
+│       ├── dts/rockchip/    # Active device trees
+│       └── dts/reference/   # Vendor reference files
+├── boards/                  # Board documentation
+├── docs/                    # Project documentation
+│   └── adr/                 # Architecture decisions
+├── rkbin/                   # Vendor blobs (submodule)
+└── output/                  # Build artifacts
 ```
 
-**Default credentials:** `rock` / `rock`
-
 ---
 
-## 🤝 Contributing
+## Contributing
 
-This is a working project for RK356x embedded development. Contributions, bug reports, and improvements are welcome!
+Contributions, bug reports, and improvements are welcome.
 
-**Before contributing:**
-- Ensure builds work in Docker (reproducibility)
+Before contributing:
+
+- Ensure builds work in Docker for reproducibility
 - Test on actual hardware when possible
 - Update documentation for any changes
-- Keep commit messages descriptive
+- Follow conventional commit message format
 
 ---
 
-## 📄 License
+## License
 
-MIT License - See LICENSE file for details
+MIT License - See LICENSE file for details.
 
 Hardware-specific blobs and firmware may have different licenses (see rkbin/ submodule).
 
 ---
 
-## 🔗 Useful Links
+## References
 
-- [Rockchip Linux Kernel](https://github.com/rockchip-linux/kernel)
-- [Mainline U-Boot](https://source.denx.de/u-boot/u-boot)
-- [Panfrost Driver](https://docs.mesa3d.org/drivers/panfrost.html)
-- [RK3568 Datasheet](https://www.rock-chips.com/uploads/pdf/2022.8.26/192/RK3568%20Brief%20Datasheet.pdf)
+| Resource | Link |
+|----------|------|
+| Mainline U-Boot | https://source.denx.de/u-boot/u-boot |
+| Panfrost Driver | https://docs.mesa3d.org/drivers/panfrost.html |
+| Debian 12 | https://www.debian.org/releases/bookworm/ |
+| RK3568 Datasheet | https://www.rock-chips.com/ |
