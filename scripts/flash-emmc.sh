@@ -2,7 +2,11 @@
 #
 # Flash mainline build to eMMC via USB OTG (maskrom mode)
 #
-# Usage: ./scripts/flash-emmc.sh [image.img]
+# Usage: ./scripts/flash-emmc.sh [OPTIONS] [image.img]
+#
+# Options:
+#   --uboot-only    Only flash U-Boot (clears eMMC boot area, boots from SD)
+#   --wipe          Wipe entire eMMC before flashing
 #
 # If no image specified, uses the most recent image in output/
 #
@@ -18,6 +22,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 RKBIN_DIR="${PROJECT_ROOT}/rkbin"
 OUTPUT_DIR="${PROJECT_ROOT}/output"
+UBOOT_DIR="${OUTPUT_DIR}/uboot"
+
+# Options
+UBOOT_ONLY=false
+WIPE_EMMC=false
+FLASH_LATEST=false
 
 # Colors
 RED='\033[0;31m'
@@ -28,6 +38,61 @@ NC='\033[0m'
 log() { echo -e "${GREEN}[FLASH]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
+
+# Show usage
+usage() {
+    echo "RK3568 eMMC Flash Tool"
+    echo ""
+    echo "Usage: sudo $0 [OPTIONS] [image.img]"
+    echo ""
+    echo "Options:"
+    echo "  --latest        Flash the latest image from output/"
+    echo "  --uboot-only    Flash U-Boot only (board will boot from SD card)"
+    echo "  --wipe          Wipe entire eMMC before flashing"
+    echo "  -h, --help      Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  sudo $0 --latest             # Flash latest image to eMMC"
+    echo "  sudo $0 --uboot-only         # Flash U-Boot only, boot from SD"
+    echo "  sudo $0 --wipe my-image.img  # Wipe eMMC and flash specific image"
+    echo ""
+    exit 0
+}
+
+# Parse arguments
+parse_args() {
+    # Show help if no arguments
+    if [[ $# -eq 0 ]]; then
+        usage
+    fi
+
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -h|--help)
+                usage
+                ;;
+            --latest)
+                FLASH_LATEST=true
+                shift
+                ;;
+            --uboot-only)
+                UBOOT_ONLY=true
+                shift
+                ;;
+            --wipe)
+                WIPE_EMMC=true
+                shift
+                ;;
+            -*)
+                error "Unknown option: $1"
+                ;;
+            *)
+                IMAGE_ARG="$1"
+                shift
+                ;;
+        esac
+    done
+}
 
 # Check for root/sudo
 check_permissions() {
@@ -97,10 +162,43 @@ prepare_loader() {
     log "Using loader: $(basename "$LOADER")"
 }
 
+# Find U-Boot binary
+find_uboot() {
+    UBOOT_BIN="${UBOOT_DIR}/u-boot-rockchip.bin"
+
+    if [ ! -f "$UBOOT_BIN" ]; then
+        error "U-Boot not found at $UBOOT_BIN. Build first with: ./scripts/build-kernel.sh"
+    fi
+
+    log "U-Boot: $(basename "$UBOOT_BIN")"
+}
+
+# Wipe eMMC
+wipe_emmc() {
+    log "Wiping eMMC (erasing all data)..."
+
+    if ! $RKDEV ef; then
+        error "Failed to erase flash"
+    fi
+
+    log "eMMC wiped successfully"
+}
+
+# Write U-Boot only (sector 64 = 0x40)
+write_uboot() {
+    log "Writing U-Boot to eMMC at sector 64..."
+
+    if ! $RKDEV wl 64 "$UBOOT_BIN"; then
+        error "Failed to write U-Boot"
+    fi
+
+    log "U-Boot written successfully"
+}
+
 # Find image to flash
 find_image() {
-    if [ -n "$1" ] && [ -f "$1" ]; then
-        IMAGE="$1"
+    if [ -n "$IMAGE_ARG" ] && [ -f "$IMAGE_ARG" ]; then
+        IMAGE="$IMAGE_ARG"
     else
         # Find most recent image
         IMAGE=$(ls -t "${OUTPUT_DIR}"/rk3568-debian-*.img 2>/dev/null | head -1)
@@ -149,6 +247,8 @@ reboot_device() {
 
 # Main
 main() {
+    parse_args "$@"
+
     echo "=========================================="
     echo "  RK3568 eMMC Flash Tool"
     echo "=========================================="
@@ -158,30 +258,69 @@ main() {
     find_rkdeveloptool
     check_device
     prepare_loader
-    find_image "$1"
 
-    echo ""
-    echo "Ready to flash:"
-    echo "  Image:  $(basename "$IMAGE")"
-    echo "  Loader: $(basename "$LOADER")"
-    echo ""
-    read -p "Continue? [y/N] " -n 1 -r
-    echo ""
+    if $UBOOT_ONLY; then
+        # U-Boot only mode
+        find_uboot
 
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        log "Cancelled"
-        exit 0
+        echo ""
+        echo "Ready to flash U-Boot only:"
+        echo "  U-Boot: $(basename "$UBOOT_BIN")"
+        echo "  Loader: $(basename "$LOADER")"
+        echo ""
+        echo "This will clear the eMMC boot area so the board boots from SD card."
+        echo ""
+        read -p "Continue? [y/N] " -n 1 -r
+        echo ""
+
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            log "Cancelled"
+            exit 0
+        fi
+
+        download_loader
+        if $WIPE_EMMC; then
+            wipe_emmc
+        fi
+        write_uboot
+        reboot_device
+
+        echo ""
+        log "U-Boot flashed! Board will now boot from SD card."
+        echo ""
+    else
+        # Full image mode
+        find_image
+
+        echo ""
+        echo "Ready to flash:"
+        echo "  Image:  $(basename "$IMAGE")"
+        echo "  Loader: $(basename "$LOADER")"
+        if $WIPE_EMMC; then
+            echo "  Wipe:   YES (will erase all data first)"
+        fi
+        echo ""
+        read -p "Continue? [y/N] " -n 1 -r
+        echo ""
+
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            log "Cancelled"
+            exit 0
+        fi
+
+        download_loader
+        if $WIPE_EMMC; then
+            wipe_emmc
+        fi
+        write_image
+        reboot_device
+
+        echo ""
+        log "Flash complete! Device is rebooting."
+        echo ""
+        echo "Default credentials: rock/rock"
+        echo ""
     fi
-
-    download_loader
-    write_image
-    reboot_device
-
-    echo ""
-    log "Flash complete! Device is rebooting."
-    echo ""
-    echo "Default credentials: rock/rock"
-    echo ""
 }
 
 main "$@"
