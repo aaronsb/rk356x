@@ -51,7 +51,7 @@ Default credentials: `rock` / `rock`
 
 | Board | Status | Ethernet | Display | Notes |
 |-------|--------|----------|---------|-------|
-| SZ3568-V1.2 | Fully working | RGMII (MAXIO PHY) | HDMI 1080p | Primary development board |
+| SZ3568-V1.2 | Fully working | RGMII (MAXIO PHY) | HDMI + LVDS | Primary development board |
 | DC-A568-V06 | Legacy | RMII | HDMI | Buildroot-based, deprecated |
 
 ### Building for Specific Boards
@@ -148,7 +148,12 @@ After experimenting with Rockchip BSP kernels, mainline 6.12 was selected for:
 - Active community development
 - Long-term maintainability
 
-Custom patches are minimal (DMA reset timeout for MAXIO PHY only).
+Custom patches include:
+- DMA reset timeout fix for MAXIO PHY
+- Native LVDS controller driver for RK3568
+- Inno video PHY driver for LVDS
+- PLL mode switching fix for HDMI clock initialization
+- HDMI mode validation fix for RK3568
 
 ### Wayland Desktop
 
@@ -158,6 +163,46 @@ The switch from X11/XFCE to Wayland/sway provides:
 - Better Panfrost integration
 - Reduced resource usage
 - Modern display protocol support
+
+---
+
+## Using the Desktop
+
+After booting, login at the console and start the graphical environment:
+
+```bash
+sway
+```
+
+### Sway Keybindings
+
+| Key | Action |
+|-----|--------|
+| `Super+Enter` | Open terminal |
+| `Super+D` | Application menu (dmenu) |
+| `Super+Shift+Q` | Close window |
+| `Super+Shift+C` | Reload config |
+| `Super+Shift+E` | Exit sway |
+| `Super+F` | Toggle fullscreen |
+| `Super+1-4` | Switch workspace |
+
+These keybindings are also shown in the status bar.
+
+---
+
+## Flashing to eMMC
+
+For eMMC installation via USB OTG (maskrom mode):
+
+```bash
+# Flash complete image
+sudo ./scripts/flash-emmc.sh --latest
+
+# Or flash just U-Boot (board boots from SD card)
+sudo ./scripts/flash-emmc.sh --uboot-only
+```
+
+Run `./scripts/flash-emmc.sh` without arguments for usage help.
 
 ---
 
@@ -179,21 +224,35 @@ The switch from X11/XFCE to Wayland/sway provides:
 ```
 rk356x/
 ├── build.sh                 # Main build orchestrator
-├── scripts/                 # Build scripts
-│   ├── build-kernel.sh
-│   ├── build-debian-rootfs.sh
-│   ├── build-uboot.sh
-│   └── assemble-debian-image.sh
+├── scripts/                 # Build and utility scripts
+│   ├── build-kernel.sh      # Compile kernel + DTBs
+│   ├── build-debian-rootfs.sh  # Create Debian rootfs
+│   ├── build-uboot.sh       # Compile U-Boot
+│   ├── assemble-debian-image.sh  # Create bootable image
+│   └── flash-emmc.sh        # Flash to eMMC via USB OTG
 ├── external/custom/         # Board customizations
 │   └── board/rk3568/
-│       ├── dts/rockchip/    # Active device trees
-│       └── dts/reference/   # Vendor reference files
+│       ├── dts/rockchip/    # Device trees
+│       ├── patches/linux/   # Kernel patches
+│       ├── rootfs-overlay/  # Files copied to rootfs
+│       └── kernel.config    # Kernel config fragment
 ├── boards/                  # Board documentation
 ├── docs/                    # Project documentation
 │   └── adr/                 # Architecture decisions
 ├── rkbin/                   # Vendor blobs (submodule)
 └── output/                  # Build artifacts
 ```
+
+### Build Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `build.sh` | Full build: kernel + rootfs + image |
+| `scripts/build-kernel.sh` | Compile kernel, modules, and DTBs |
+| `scripts/build-debian-rootfs.sh` | Create Debian rootfs with packages |
+| `scripts/build-uboot.sh` | Compile mainline U-Boot |
+| `scripts/assemble-debian-image.sh` | Combine components into bootable image |
+| `scripts/flash-emmc.sh` | Flash image to eMMC via maskrom mode |
 
 ---
 
