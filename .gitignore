@@ -99,3 +99,4 @@ linux-*.deb
 linux-*.changes
 linux-*.buildinfo
 output/build-*.log
+.claude/
