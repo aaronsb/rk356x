@@ -48,7 +48,7 @@
 		data-mapping = "vesa-24";
 		width-mm = <217>;
 		height-mm = <136>;
-		status = "okay";
+		status = "disabled";  /* Disabled until panel available */
 
 		panel-timing {
 			clock-frequency = <66000000>;
@@ -125,7 +125,7 @@
 		rockchip,grf = <&grf>;
 		phys = <&video_phy>;
 		phy-names = "dphy";
-		status = "okay";
+		status = "disabled";  /* Disabled until panel available - causes HDMI probe issues */
 
 		ports {
 			#address-cells = <1>;
