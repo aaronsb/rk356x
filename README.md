@@ -190,19 +190,64 @@ These keybindings are also shown in the status bar.
 
 ---
 
-## Flashing to eMMC
+## Flashing Methods
 
-For eMMC installation via USB OTG (maskrom mode):
+There are two ways to install to eMMC:
 
+### Method 1: USB OTG Maskrom Mode (flash-emmc.sh)
+
+Use this when you have physical access and can put the board in maskrom mode. This method can recover boards with corrupted bootloaders or unknown firmware (like OEM images).
+
+**Requirements:**
+- USB OTG cable connected to the board
+- `rkdeveloptool` installed (`apt install rkdeveloptool`)
+- Board in maskrom mode
+
+**Entering Maskrom Mode:**
+1. Power off the board
+2. Hold the RECOVERY button
+3. Connect USB OTG cable (or press RESET if already connected)
+4. Release RECOVERY button after 2 seconds
+5. Verify with `rkdeveloptool ld` (should show "Maskrom" device)
+
+**Flashing Commands:**
 ```bash
-# Flash complete image
+# Show usage help
+./scripts/flash-emmc.sh
+
+# Flash complete image to eMMC
 sudo ./scripts/flash-emmc.sh --latest
 
-# Or flash just U-Boot (board boots from SD card)
+# Flash just U-Boot (board will boot from SD card)
+sudo ./scripts/flash-emmc.sh --uboot-only
+
+# Wipe eMMC and flash specific image
+sudo ./scripts/flash-emmc.sh --wipe /path/to/image.img
+```
+
+**Cold Flash Recovery (unknown/OEM firmware):**
+```bash
+# 1. Put board in maskrom mode (see above)
+# 2. Wipe and flash fresh image
+sudo ./scripts/flash-emmc.sh --wipe --latest
+
+# Or just install U-Boot to boot from SD card
 sudo ./scripts/flash-emmc.sh --uboot-only
 ```
 
-Run `./scripts/flash-emmc.sh` without arguments for usage help.
+### Method 2: On-Device Cloning (setup-emmc)
+
+Use this to update eMMC from a running system booted from SD card. Useful for field updates without USB OTG access.
+
+**Procedure:**
+1. Insert SD card with new image (board auto-boots from SD when present)
+2. Login and run:
+```bash
+sudo setup-emmc
+```
+3. Remove SD card and reboot
+
+This partitions the eMMC, copies the kernel/DTB, and clones the rootfs from SD to eMMC.
 
 ---
 

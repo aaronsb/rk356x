@@ -37,9 +37,20 @@ case "$ROOT_DEV" in
         ;;
 esac
 
-log_info "SD card: ${SD_DEV}"
-log_info "eMMC: ${EMMC_DEV}"
+log_info "SD card (source): ${SD_DEV}"
+log_info "eMMC (target):    ${EMMC_DEV}"
 echo ""
+
+# Safety check - verify eMMC exists and is different from boot device
+if [ ! -b "${EMMC_DEV}" ]; then
+    log_error "eMMC device ${EMMC_DEV} not found"
+    exit 1
+fi
+
+if [ "${SD_DEV}" = "${EMMC_DEV}" ]; then
+    log_error "Source and target are the same device - aborting!"
+    exit 1
+fi
 
 # Confirm
 log_warn "This will ERASE all data on ${EMMC_DEV}"
@@ -70,6 +81,11 @@ log_info "Console: ${CONSOLE}"
 log_info "Label: ${LABEL}"
 echo ""
 
+# Copy U-Boot from SD card to eMMC
+# U-Boot lives in the first 16MiB (before partitions)
+log_info "Copying U-Boot bootloader..."
+dd if="${SD_DEV}" of="${EMMC_DEV}" bs=512 count=32768 conv=fsync status=none
+
 # Partition eMMC
 log_info "Partitioning eMMC..."
 # Use fdisk since parted may not be available
@@ -78,7 +94,7 @@ log_info "Partitioning eMMC..."
     echo n      # New partition
     echo 1      # Partition 1
     echo 32768  # Start sector (16MiB)
-    echo 557055 # End sector (~272MiB)
+    echo 557055 # End sector (~256MiB boot partition)
     echo n      # New partition
     echo 2      # Partition 2
     echo 557056 # Start sector
@@ -87,6 +103,7 @@ log_info "Partitioning eMMC..."
 } | fdisk "${EMMC_DEV}" > /dev/null 2>&1
 
 sleep 1
+partprobe "${EMMC_DEV}" 2>/dev/null || true
 
 # Format
 log_info "Formatting partitions..."
