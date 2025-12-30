@@ -470,8 +470,12 @@ EOF
             tar -xzf "$tmp_extract/data.tar.gz" -C "$tmp_extract" ./lib/modules 2>/dev/null || true
         fi
         if [ -d "$tmp_extract/lib/modules" ]; then
-            cp -a "$tmp_extract/lib/modules"/* "${WORK_DIR}/root/lib/modules/" 2>/dev/null || \
-            cp -a "$tmp_extract/lib/modules" "${WORK_DIR}/root/lib/"
+            # Copy each versioned modules directory (e.g., 6.12.0-dirty/) preserving structure
+            for moddir in "$tmp_extract/lib/modules"/*; do
+                if [ -d "$moddir" ]; then
+                    cp -a "$moddir" "${WORK_DIR}/root/lib/modules/"
+                fi
+            done
             log "✓ Kernel modules installed"
         else
             warn "Could not extract modules from deb package"
