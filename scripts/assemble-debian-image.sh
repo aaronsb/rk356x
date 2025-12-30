@@ -455,10 +455,34 @@ IMAGE_VERSION=${IMAGE_NAME}
 BUILD_SYSTEM=debian-build-system
 EOF
 
-    # Install kernel modules
-    if [ -d "${KERNEL_DIR}/modules_install" ]; then
-        log "Installing kernel modules..."
+    # Install kernel modules from .deb package
+    local kernel_deb=$(ls -1t "${OUTPUT_DIR}/kernel-debs"/linux-image-*.deb 2>/dev/null | grep -v '\-dbg' | head -1)
+    if [ -n "$kernel_deb" ] && [ -f "$kernel_deb" ]; then
+        log "Installing kernel modules from $(basename "$kernel_deb")..."
+        # Extract modules from deb to temp dir, then copy to rootfs
+        local tmp_extract=$(mktemp -d)
+        ar -x "$kernel_deb" --output="$tmp_extract"
+        if [ -f "$tmp_extract/data.tar.zst" ]; then
+            zstd -d "$tmp_extract/data.tar.zst" -c | tar -xf - -C "$tmp_extract" ./lib/modules 2>/dev/null || true
+        elif [ -f "$tmp_extract/data.tar.xz" ]; then
+            tar -xJf "$tmp_extract/data.tar.xz" -C "$tmp_extract" ./lib/modules 2>/dev/null || true
+        elif [ -f "$tmp_extract/data.tar.gz" ]; then
+            tar -xzf "$tmp_extract/data.tar.gz" -C "$tmp_extract" ./lib/modules 2>/dev/null || true
+        fi
+        if [ -d "$tmp_extract/lib/modules" ]; then
+            cp -a "$tmp_extract/lib/modules"/* "${WORK_DIR}/root/lib/modules/" 2>/dev/null || \
+            cp -a "$tmp_extract/lib/modules" "${WORK_DIR}/root/lib/"
+            log "✓ Kernel modules installed"
+        else
+            warn "Could not extract modules from deb package"
+        fi
+        rm -rf "$tmp_extract"
+    elif [ -d "${KERNEL_DIR}/modules_install" ]; then
+        # Fallback to legacy modules_install directory
+        log "Installing kernel modules from modules_install..."
         cp -a "${KERNEL_DIR}/modules_install/lib/modules" "${WORK_DIR}/root/lib/" || true
+    else
+        warn "No kernel modules found - WiFi and other module-based drivers will not work"
     fi
 
     # Cleanup and unmount

@@ -1,0 +1,6 @@
+#!/bin/sh
+# Sway status bar - shows keybinding hints and time
+while true; do
+    echo "Super+Enter:Term | Super+D:Menu | Super+Shift+Q:Close | Super+Shift+E:Exit | $(date +'%Y-%m-%d %H:%M:%S')"
+    sleep 1
+done

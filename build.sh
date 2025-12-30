@@ -114,6 +114,12 @@ usage() {
     echo
 }
 
+# Show help if no arguments provided
+if [[ $# -eq 0 ]]; then
+    usage
+    exit 0
+fi
+
 # Parse arguments
 BOARD=""
 AUTO_MODE=false
