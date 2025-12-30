@@ -1,0 +1,62 @@
+From: Custom <custom@local>
+Date: Sun, 29 Dec 2024 00:00:00 +0000
+Subject: [PATCH] drm/rockchip: hdmi: skip ref_clk validation for RK3568
+
+The RK3568 uses HPLL (HDMI PLL) which can dynamically change rate during
+clk_set_rate() in encoder_mode_set. However, clk_round_rate() only queries
+what rate would be achieved without actually changing the PLL, returning
+either the current rate or nearest achievable rate from the PLL table.
+
+This causes valid modes to be rejected with MODE_NOCLOCK because:
+1. HPLL starts at some rate (e.g., 148.5MHz from boot)
+2. clk_round_rate(29MHz) returns 148.5MHz (current rate)
+3. abs(148.5M - 29M) > 29M/1000 -> MODE_NOCLOCK
+
+The Rockchip BSP kernel doesn't do this pre-validation and instead handles
+missing rates dynamically during mode set, as seen in dmesg:
+"Rate 29000000 missing; compute N dynamically"
+
+Skip the ref_clk validation for RK3568 to match BSP behavior. The actual
+rate will be set correctly during encoder_mode_set via clk_set_rate().
+
+Signed-off-by: Custom <custom@local>
+---
+ drivers/gpu/drm/rockchip/dw_hdmi-rockchip.c | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/rockchip/dw_hdmi-rockchip.c b/drivers/gpu/drm/rockchip/dw_hdmi-rockchip.c
+--- a/drivers/gpu/drm/rockchip/dw_hdmi-rockchip.c
++++ b/drivers/gpu/drm/rockchip/dw_hdmi-rockchip.c
+@@ -68,6 +68,7 @@ struct rockchip_hdmi_chip_data {
+ 	u32	lcdsel_big;
+ 	u32	lcdsel_lit;
+ 	int	max_tmds_clock;
++	bool	skip_ref_clk_check;
+ };
+
+ struct rockchip_hdmi {
+@@ -260,7 +261,13 @@ dw_hdmi_rockchip_mode_valid(struct dw_hdmi *dw_hdmi, void *data,
+ 	    mode->clock > hdmi->chip_data->max_tmds_clock)
+ 		return MODE_CLOCK_HIGH;
+
+-	if (hdmi->ref_clk) {
++	/*
++	 * Skip ref_clk validation for chips that handle rate changes
++	 * dynamically. clk_round_rate() only queries without changing,
++	 * causing false MODE_NOCLOCK rejections when the PLL can actually
++	 * achieve the rate via clk_set_rate() in encoder_mode_set.
++	 */
++	if (hdmi->ref_clk && !hdmi->chip_data->skip_ref_clk_check) {
+ 		int rpclk = clk_round_rate(hdmi->ref_clk, pclk);
+
+ 		if (abs(rpclk - pclk) > pclk / 1000)
+@@ -517,6 +524,7 @@ static const struct dw_hdmi_plat_data rk3399_hdmi_drv_data = {
+ static struct rockchip_hdmi_chip_data rk3568_chip_data = {
+ 	.lcdsel_grf_reg = -1,
+ 	.max_tmds_clock = 340000,
++	.skip_ref_clk_check = true,
+ };
+
+ static const struct dw_hdmi_plat_data rk3568_hdmi_drv_data = {
+--
+2.43.0
