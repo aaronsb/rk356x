@@ -60,7 +60,7 @@ usage() {
     echo "    --kernel-only         Build kernel only"
     echo "    --rootfs-only         Build rootfs only"
     echo "    --image-only          Assemble image only (skip builds)"
-    echo "    --with-uboot          Include U-Boot in image (⚠️  DANGEROUS)"
+    echo "    --with-uboot          Include U-Boot in image"
     echo "    --device /dev/sdX     SD card device (for --auto mode)"
     echo "    --help, -h            Show this help"
     echo
@@ -858,8 +858,7 @@ stage_uboot() {
     else
         warn "No U-Boot artifacts found"
         echo
-        warn "⚠️  CAUTION: Building custom U-Boot!"
-        warn "⚠️  Ensure you have maskrom recovery available!"
+        info "Note: Maskrom mode can recover from bad U-Boot flash"
         echo
 
         if [ "$NON_INTERACTIVE" = false ]; then
@@ -888,7 +887,7 @@ stage_image() {
 
     info "Board:    ${BOARD}"
     info "DTB:      ${DTB_NAME}.dtb"
-    info "U-Boot:   $([ "$WITH_UBOOT" = true ] && echo "INCLUDED ⚠️" || echo "Using existing on board")"
+    info "U-Boot:   $([ "$WITH_UBOOT" = true ] && echo "INCLUDED" || echo "Using existing on board")"
     info "Output:   ${OUTPUT_DIR}/rk3568-debian-*.img"
     echo
 
