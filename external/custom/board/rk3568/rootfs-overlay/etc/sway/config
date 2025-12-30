@@ -30,8 +30,8 @@ bindsym $mod+4 workspace number 4
 bindsym $mod+f fullscreen toggle
 bindsym $mod+Shift+space floating toggle
 
-# Status bar
+# Status bar with keybinding hints
 bar {
     position top
-    status_command while date +'%Y-%m-%d %H:%M:%S'; do sleep 1; done
+    status_command while echo "Super+Enter:Terminal | Super+D:Menu | Super+Shift+Q:Close | Super+Shift+E:Exit | $(date +'%Y-%m-%d %H:%M:%S')"; do sleep 1; done
 }
