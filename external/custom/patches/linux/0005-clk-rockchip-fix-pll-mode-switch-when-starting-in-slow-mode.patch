@@ -1,0 +1,59 @@
+From: Custom Patch <custom@local>
+Subject: [PATCH] clk: rockchip: fix PLL mode switch when starting in slow mode
+
+The rk3036 PLL driver only switches to normal mode after set_params if
+the PLL was already in normal mode before the rate change. This means
+if a PLL starts in slow mode (e.g., HPLL on RK3568 which defaults to
+slow mode), it will never switch to normal mode after rate changes.
+
+Fix this by always switching to normal mode after a successful rate
+change, regardless of the initial mode.
+
+This fixes HDMI output on RK3568 boards where all display modes are
+rejected with NOCLOCK because clk_round_rate() returns the 24MHz
+crystal frequency instead of the actual PLL-generated rate.
+
+Signed-off-by: Custom Patch <custom@local>
+---
+ drivers/clk/rockchip/clk-pll.c | 13 +++++--------
+ 1 file changed, 5 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/clk/rockchip/clk-pll.c b/drivers/clk/rockchip/clk-pll.c
+index 7f962863b8a0..a1b2c3d4e5f6 100644
+--- a/drivers/clk/rockchip/clk-pll.c
++++ b/drivers/clk/rockchip/clk-pll.c
+@@ -193,8 +193,6 @@ static int rockchip_rk3036_pll_set_params(struct rockchip_clk_pll *pll,
+ 	struct clk_mux *pll_mux = &pll->pll_mux;
+ 	struct rockchip_pll_rate_table cur;
+ 	u32 pllcon;
+-	int rate_change_remuxed = 0;
+-	int cur_parent;
+ 	int ret;
+
+ 	pr_debug("%s: rate settings for %lu fbdiv: %d, postdiv1: %d, refdiv: %d, postdiv2: %d, dsmpd: %d, frac: %d\n",
+@@ -204,11 +202,9 @@ static int rockchip_rk3036_pll_set_params(struct rockchip_clk_pll *pll,
+ 	rockchip_rk3036_pll_get_params(pll, &cur);
+ 	cur.rate = 0;
+
+-	cur_parent = pll_mux_ops->get_parent(&pll_mux->hw);
+-	if (cur_parent == PLL_MODE_NORM) {
++	/* Switch to slow mode while updating PLL parameters */
++	if (pll_mux_ops->get_parent(&pll_mux->hw) == PLL_MODE_NORM)
+ 		pll_mux_ops->set_parent(&pll_mux->hw, PLL_MODE_SLOW);
+-		rate_change_remuxed = 1;
+-	}
+
+ 	/* update pll values */
+ 	writel_relaxed(HIWORD_UPDATE(rate->fbdiv, RK3036_PLLCON0_FBDIV_MASK,
+@@ -239,7 +235,8 @@ static int rockchip_rk3036_pll_set_params(struct rockchip_clk_pll *pll,
+ 		rockchip_rk3036_pll_set_params(pll, &cur);
+ 	}
+
+-	if (rate_change_remuxed)
++	/* Always switch to normal mode after successful rate change */
++	if (!ret)
+ 		pll_mux_ops->set_parent(&pll_mux->hw, PLL_MODE_NORM);
+
+ 	return ret;
+--
+2.47.1

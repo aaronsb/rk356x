@@ -48,7 +48,7 @@
 		data-mapping = "vesa-24";
 		width-mm = <217>;
 		height-mm = <136>;
-		status = "okay";
+		status = "disabled";  /* TEST: disabled with LVDS */
 
 		panel-timing {
 			clock-frequency = <66000000>;
@@ -125,7 +125,7 @@
 		rockchip,grf = <&grf>;
 		phys = <&video_phy>;
 		phy-names = "dphy";
-		status = "okay";
+		status = "disabled";  /* TEST: disabled to check if HDMI works alone */
 
 		ports {
 			#address-cells = <1>;
@@ -735,6 +735,12 @@
 &usb2phy1_otg {
 	phy-supply = <&vcc5v0_host>;
 	status = "okay";
+};
+
+/* Force HPLL to initialize at boot - fixes HDMI NOCLOCK errors */
+&pmucru {
+	assigned-clocks = <&pmucru PLL_HPLL>;
+	assigned-clock-rates = <148500000>;
 };
 
 /* VOP2 Display Controller */
