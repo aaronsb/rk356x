@@ -2,7 +2,14 @@
 # Generate a consistent MAC address from CPU serial number
 # This ensures the same board always gets the same MAC across reflashes
 
-SERIAL=$(grep -m1 Serial /proc/cpuinfo | awk '{print $3}')
+# Try devicetree first (ARM64), then /proc/cpuinfo (older kernels)
+if [ -f /sys/firmware/devicetree/base/serial-number ]; then
+    SERIAL=$(cat /sys/firmware/devicetree/base/serial-number | tr -d '\0')
+elif [ -f /proc/device-tree/serial-number ]; then
+    SERIAL=$(cat /proc/device-tree/serial-number | tr -d '\0')
+else
+    SERIAL=$(grep -m1 Serial /proc/cpuinfo | awk '{print $3}')
+fi
 
 if [ -z "$SERIAL" ]; then
     echo "Warning: No CPU serial found, using random MAC"
