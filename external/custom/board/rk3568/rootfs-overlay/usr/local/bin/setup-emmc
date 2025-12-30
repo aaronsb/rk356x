@@ -4,6 +4,35 @@ set -e
 # Setup eMMC - Provisions the internal storage
 # Run this after booting from SD card
 
+usage() {
+    echo "Setup eMMC - Clone SD card to internal eMMC storage"
+    echo ""
+    echo "Usage: sudo setup-emmc [--yes]"
+    echo ""
+    echo "Options:"
+    echo "  --yes    Skip confirmation prompt"
+    echo "  --help   Show this help"
+    echo ""
+    echo "This script:"
+    echo "  1. Copies U-Boot bootloader from SD to eMMC"
+    echo "  2. Partitions eMMC (256MB boot + rest for rootfs)"
+    echo "  3. Copies kernel, DTB, and root filesystem"
+    echo ""
+    echo "After completion, remove SD card and reboot to use eMMC."
+    exit 0
+}
+
+# Parse arguments
+AUTO_YES=false
+case "${1:-}" in
+    --help|-h)
+        usage
+        ;;
+    --yes|-y)
+        AUTO_YES=true
+        ;;
+esac
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -54,15 +83,19 @@ fi
 
 # Confirm
 log_warn "This will ERASE all data on ${EMMC_DEV}"
-printf "Continue? (y/N) "
-read REPLY
-case "$REPLY" in
-    y|Y) ;;
-    *)
-        log_error "Cancelled"
-        exit 1
-        ;;
-esac
+if [ "$AUTO_YES" = "true" ]; then
+    log_info "Auto-confirmed with --yes"
+else
+    printf "Continue? (y/N) "
+    read REPLY
+    case "$REPLY" in
+        y|Y) ;;
+        *)
+            log_error "Cancelled"
+            exit 1
+            ;;
+    esac
+fi
 
 # Mount boot partition
 mkdir -p /boot
