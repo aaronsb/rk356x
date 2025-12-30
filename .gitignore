@@ -9,8 +9,9 @@ buildroot/
 buildroot-*.tar.gz
 
 # U-Boot source (cloned during build)
-u-boot/
-u-boot-*/
+/u-boot/
+/u-boot-*/
+!external/custom/patches/u-boot/
 
 # Temporary files
 *.tmp

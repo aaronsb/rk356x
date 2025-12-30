@@ -24,6 +24,7 @@ step() { echo -e "${BLUE}[STEP]${NC} $*"; }
 BOARD=""
 CUSTOM_BOOTCMD=""
 SKIP_DOCKER=false
+DO_CLEAN=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -33,6 +34,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-docker)
             SKIP_DOCKER=true
+            shift
+            ;;
+        --clean)
+            DO_CLEAN=true
             shift
             ;;
         --help|-h)
@@ -87,6 +92,7 @@ Arguments:
 Options:
   --bootcmd CMD          Custom bootcmd (default: "run distro_bootcmd")
   --skip-docker          Build on host instead of Docker
+  --clean                Clean U-Boot source tree completely before building
   --help, -h             Show this help
 
 Examples:
@@ -140,6 +146,12 @@ build_in_docker() {
         fi
     fi
 
+    # Build args for inner script
+    local INNER_ARGS="--skip-docker"
+    if [ "$DO_CLEAN" = true ]; then
+        INNER_ARGS="$INNER_ARGS --clean"
+    fi
+
     # Run build inside Docker
     log "Docker will run as user ${USER_ID}:${GROUP_ID}"
     docker run --rm \
@@ -154,7 +166,7 @@ build_in_docker() {
             set -e
             echo \"==> Inside Docker: Running as user \$(id -u):\$(id -g) (\$(id -un):\$(id -gn))\"
             cd ${PROJECT_ROOT}
-            ${SCRIPT_DIR}/build-uboot.sh --skip-docker ${BOARD}
+            ${SCRIPT_DIR}/build-uboot.sh ${INNER_ARGS} ${BOARD}
         "
 }
 
@@ -203,6 +215,96 @@ patch_bootcmd() {
     log "Bootcmd patched (if found in ${config_file})"
 }
 
+clean_uboot() {
+    step "Cleaning U-Boot source tree..."
+
+    if [ ! -d "${UBOOT_DIR}" ]; then
+        log "U-Boot directory doesn't exist, nothing to clean"
+        return 0
+    fi
+
+    cd "${UBOOT_DIR}"
+
+    # First try make distclean
+    log "Running make distclean..."
+    make distclean 2>/dev/null || true
+
+    # Reset all tracked files to HEAD
+    log "Resetting tracked files..."
+    git checkout -- . 2>/dev/null || true
+
+    # Remove ALL untracked files and directories (including ignored ones)
+    log "Removing untracked files..."
+    git clean -fdx 2>/dev/null || {
+        warn "git clean failed, trying with sudo..."
+        sudo git clean -fdx 2>/dev/null || true
+    }
+
+    # Verify clean state
+    local status=$(git status --porcelain 2>/dev/null)
+    if [ -n "$status" ]; then
+        warn "Some files remain after clean:"
+        echo "$status" | head -10
+    else
+        log "✓ U-Boot source tree is clean"
+    fi
+}
+
+apply_uboot_patches() {
+    local patch_dir="${PROJECT_ROOT}/external/custom/patches/u-boot"
+
+    if [ ! -d "$patch_dir" ] || [ -z "$(ls -A "$patch_dir"/*.patch 2>/dev/null)" ]; then
+        log "No U-Boot patches to apply"
+        return 0
+    fi
+
+    cd "${UBOOT_DIR}"
+
+    # Reset to clean state before applying patches
+    log "Resetting U-Boot source to clean state..."
+    git checkout -- . 2>/dev/null || true
+    # Use -fdx to also remove files created by previous patch applications
+    git clean -fdx 2>/dev/null || true
+
+    log "Applying U-Boot patches..."
+    for patch in "$patch_dir"/*.patch; do
+        if [ -f "$patch" ]; then
+            patchname="$(basename "$patch")"
+            log "Applying: ${patchname}"
+            if ! git apply --check "$patch" 2>/dev/null; then
+                warn "Patch may not apply cleanly: ${patchname}"
+            fi
+            git apply "$patch" || warn "Failed to apply: ${patchname}"
+        fi
+    done
+    log "✓ U-Boot patches applied"
+}
+
+merge_uboot_config() {
+    local config_dir="${PROJECT_ROOT}/external/custom/board/rk3568/u-boot"
+    local video_config="${config_dir}/video.config"
+
+    if [ ! -f "$video_config" ]; then
+        log "No U-Boot config fragments to merge"
+        return 0
+    fi
+
+    cd "${UBOOT_DIR}"
+
+    log "Merging U-Boot config fragments..."
+
+    # Use U-Boot's merge_config.sh (like kernel's scripts/kconfig/merge_config.sh)
+    if [ -f "scripts/kconfig/merge_config.sh" ]; then
+        KCONFIG_CONFIG=.config scripts/kconfig/merge_config.sh -m .config "$video_config"
+        make olddefconfig
+        log "✓ Config fragment merged: video.config"
+    else
+        warn "merge_config.sh not found, appending config manually"
+        cat "$video_config" >> .config
+        make olddefconfig
+    fi
+}
+
 build_uboot() {
     step "Building mainline U-Boot for RK3568..."
 
@@ -214,8 +316,14 @@ build_uboot() {
         git clean -fdx || warn "Git clean failed, some files may remain"
     fi
 
+    # Apply patches before configuring
+    apply_uboot_patches
+
     # Configure for RK3568 EVB (mainline defconfig)
     make ${DEFCONFIG}
+
+    # Merge custom config fragments (video support, etc.)
+    merge_uboot_config
 
     # Set ATF and DDR init blobs as environment variables (mainline method)
     export BL31="${RKBIN_DIR}/bin/rk35/rk3568_bl31_ultra_v2.17.elf"
@@ -337,6 +445,12 @@ main() {
 
     # Native build
     clone_uboot
+
+    # Clean if requested
+    if [ "$DO_CLEAN" = true ]; then
+        clean_uboot
+    fi
+
     patch_bootcmd
     build_uboot
     package_uboot
