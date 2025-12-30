@@ -294,12 +294,15 @@ if [ "\$PROFILE" = "full" ]; then
 else
     # Minimal profile: WiFi tools + Realtek firmware for RTL8723DS
     # Using IWD instead of wpa_supplicant - has iwctl interactive shell
+    # bluez for Bluetooth (RTL8723DS is WiFi+BT combo chip)
     apt-get install -y \$APT_OPTS \
         firmware-realtek \
         wireless-tools \
         iwd \
         iw \
-        rfkill
+        rfkill \
+        bluez \
+        bluez-tools
 fi
 
 # Configure and generate locales
