@@ -278,8 +278,7 @@ else
         iputils-ping \
         iputils-tracepath \
         dnsutils \
-        ndisc6 \
-        dhcpcd5
+        ndisc6
 fi
 
 # Install network firmware and tools
@@ -293,10 +292,14 @@ if [ "\$PROFILE" = "full" ]; then
         iw \
         rfkill
 else
-    # Minimal profile: only essential WiFi tools (firmware from kernel modules)
+    # Minimal profile: WiFi tools + Realtek firmware for RTL8723DS
+    # Using IWD instead of wpa_supplicant - has iwctl interactive shell
     apt-get install -y \$APT_OPTS \
-        wpasupplicant \
-        iw
+        firmware-realtek \
+        wireless-tools \
+        iwd \
+        iw \
+        rfkill
 fi
 
 # Configure and generate locales

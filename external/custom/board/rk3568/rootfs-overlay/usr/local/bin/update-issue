@@ -49,7 +49,7 @@ MEM_FREE=$(awk '/MemAvailable/ {printf "%d", $2/1024}' /proc/meminfo)
 USB_COUNT=$(lsusb 2>/dev/null | wc -l)
 HDMI_STATUS=$(cat /sys/class/drm/card0-HDMI-A-1/status 2>/dev/null || echo "--")
 WIFI_STATUS="no driver"
-lsmod 2>/dev/null | grep -q 8723ds && WIFI_STATUS="ready"
+lsmod 2>/dev/null | grep -q rtw88 && WIFI_STATUS="ready"
 [ -d /sys/class/net/wlan0 ] && WIFI_STATUS="up"
 
 # Framebuffer resolution
