@@ -470,6 +470,8 @@ EOF
             tar -xzf "$tmp_extract/data.tar.gz" -C "$tmp_extract" ./lib/modules 2>/dev/null || true
         fi
         if [ -d "$tmp_extract/lib/modules" ]; then
+            # Ensure target directory exists (cp behaves differently if it doesn't)
+            mkdir -p "${WORK_DIR}/root/lib/modules"
             # Copy each versioned modules directory (e.g., 6.12.0-dirty/) preserving structure
             for moddir in "$tmp_extract/lib/modules"/*; do
                 if [ -d "$moddir" ]; then

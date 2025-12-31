@@ -305,9 +305,7 @@ else
         bluez-tools
 fi
 
-# Configure WiFi module to load at boot (before IWD starts)
-mkdir -p /etc/modules-load.d
-echo "rtw88_8723ds" > /etc/modules-load.d/wifi.conf
+# Note: WiFi module loading is configured via rootfs-overlay/etc/modules-load.d/wifi.conf
 
 # Configure and generate locales
 # Enable en_US.UTF-8 in locale.gen
