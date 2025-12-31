@@ -2,37 +2,63 @@
 
 ## Build System
 
-**NEW: Debian/Ubuntu Build System (Recommended)**
-We've switched from Buildroot to a Debian-based approach for better package management and team alignment.
+Debian-based build system with modular scripts. Each script can run standalone or through the orchestrator.
 
 - **Documentation:** See [README-DEBIAN-BUILD.md](README-DEBIAN-BUILD.md)
-- **Quick Start:** `./scripts/build-kernel.sh && ./scripts/build-debian-rootfs.sh`
-- **Benefits:** Standard `apt` packages, no version conflicts, faster desktop builds
-
-**Legacy: Buildroot** (Still available but deprecated for desktop builds)
-The original Buildroot system is still functional for minimal/embedded builds without desktop environment.
+- **Quick Start:** `./build.sh sz3568-v1.2` (interactive) or `./build.sh --auto sz3568-v1.2`
 
 ## Supported Boards
 
-| Board | Defconfig | Description |
-|-------|-----------|-------------|
-| DC-A568-V06 | `rk3568_custom` | RMII ethernet (default) |
-| SZ3568-V1.2 | `rk3568_sz3568` | RGMII ethernet with MAXIO MAE0621A PHY |
+Boards are defined in `boards/*/board.conf`:
+
+| Board | Canonical Name | Aliases | Description |
+|-------|----------------|---------|-------------|
+| DC-A568-V06 | `dc-a568-v06` | `rk3568_custom` | RMII ethernet |
+| SZ3568-V1.2 | `sz3568-v1.2` | `rk3568_sz3568` | RGMII ethernet with MAXIO MAE0621A PHY |
 
 ## Build Commands
 
+### Orchestrator (interactive workflow)
+
 ```bash
-# Full build (downloads Buildroot, builds everything)
-./scripts/buildroot-build.sh rk3568_sz3568 build
+# Interactive build (recommended)
+./build.sh sz3568-v1.2
 
-# Rebuild kernel only (after DTS or config changes)
-./scripts/buildroot-build.sh rk3568_sz3568 linux-rebuild
+# Auto mode: build missing, flash to SD
+./build.sh --auto --device /dev/sdX sz3568-v1.2
 
-# Clean host tools (fixes Docker/native path conflicts)
-./scripts/buildroot-build.sh rk3568_sz3568 clean-host
+# Clean all artifacts
+./build.sh --clean sz3568-v1.2
 
-# Full clean rebuild
-./scripts/buildroot-build.sh rk3568_sz3568 clean
+# Build specific stage only
+./build.sh --kernel-only sz3568-v1.2
+./build.sh --rootfs-only sz3568-v1.2
+./build.sh --image-only sz3568-v1.2
+```
+
+### Standalone Scripts (for direct control)
+
+Each script follows the pattern: `<script> <board> <command>`
+
+```bash
+# Kernel
+./scripts/build/kernel.sh sz3568-v1.2 build
+./scripts/build/kernel.sh sz3568-v1.2 info
+
+# U-Boot
+./scripts/build/uboot.sh sz3568-v1.2 build
+
+# Rootfs
+./scripts/build/rootfs.sh sz3568-v1.2 build
+
+# Image assembly
+sudo ./scripts/device/assemble.sh sz3568-v1.2 build
+
+# Flash to SD card
+sudo ./scripts/device/flash-sd.sh sz3568-v1.2 flash
+
+# Flash to eMMC (maskrom mode)
+sudo ./scripts/device/flash-emmc.sh --latest
 ```
 
 Build happens in Docker container (ubuntu:22.04) for reproducibility.
@@ -41,24 +67,35 @@ Build happens in Docker container (ubuntu:22.04) for reproducibility.
 
 ```
 rk356x/
-├── buildroot/                    # Downloaded during build (gitignored)
+├── boards/                       # Board configurations (source of truth)
+│   ├── sz3568-v1.2/board.conf
+│   └── dc-a568-v06/board.conf
+├── scripts/
+│   ├── build.sh                  # Thin orchestrator
+│   ├── lib/                      # Shared libraries
+│   │   ├── common.sh             # Loads all libs
+│   │   ├── ui.sh                 # Colors, logging
+│   │   ├── board.sh              # Board lookup
+│   │   └── artifacts.sh          # Artifact detection
+│   ├── build/                    # Build scripts
+│   │   ├── kernel.sh
+│   │   ├── uboot.sh
+│   │   └── rootfs.sh
+│   └── device/                   # Device scripts
+│       ├── assemble.sh
+│       ├── flash-sd.sh
+│       └── flash-emmc.sh
 ├── rkbin/                        # Vendor blobs (git submodule)
-├── external/custom/              # ALL customizations go here
-│   ├── configs/                  # Buildroot defconfigs
-│   │   ├── rk3568_custom_defconfig    # DC-A568 board
-│   │   └── rk3568_sz3568_defconfig    # SZ3568 board
-│   ├── board/rk3568/
-│   │   ├── dts/rockchip/         # Custom device trees
-│   │   │   ├── rk3568-dc-a568.dts
-│   │   │   └── rk3568-sz3568.dts
-│   │   ├── kernel.config         # Kernel config fragment
-│   │   ├── rootfs-overlay/       # Files copied to rootfs
-│   │   └── drivers/maxio.c       # Reference PHY driver source
-│   └── patches/linux/            # Kernel patches
-│       ├── 0001-add-maxio-phy-driver.patch
-│       └── 0002-increase-dma-reset-timeout.patch
-└── scripts/
-    └── buildroot-build.sh        # Main build script
+├── external/custom/              # Board customizations
+│   └── board/rk3568/
+│       ├── dts/rockchip/         # Custom device trees
+│       ├── kernel.config         # Kernel config fragment
+│       ├── rootfs-overlay/       # Files copied to rootfs
+│       └── drivers/              # Reference driver sources
+└── output/                       # Build artifacts
+    ├── kernel-debs/              # Kernel .deb packages
+    ├── uboot/                    # U-Boot binaries
+    └── rk3568-debian-*.img       # Final images
 ```
 
 ## Key Technical Details
@@ -100,8 +137,8 @@ This ensures consistent MAC across reboots without hardcoding.
 
 ## Workflow
 
-1. **Modify config** - Edit files in `external/custom/`
-2. **Build** - `./scripts/buildroot-build.sh <board> build`
+1. **Modify config** - Edit files in `external/custom/` or `boards/`
+2. **Build** - `./build.sh sz3568-v1.2` (or standalone scripts)
 3. **Test** - Flash to SD card or eMMC
 4. **Commit** - All changes tracked in git
 5. **Repeat**
@@ -111,8 +148,8 @@ This ensures consistent MAC across reboots without hardcoding.
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | "Failed to reset the dma" | PHY clock not stable | Ensure maxio driver patch applied |
-| Patches not applying | Stale build artifacts | Delete linux-develop-6.1 dirs, run `build` |
-| Docker path errors | Mixed Docker/native builds | Run `clean-host` |
+| Patches not applying | Stale build artifacts | `./scripts/build/kernel.sh <board> clean` |
+| Docker path errors | Mixed Docker/native builds | `./build.sh --clean <board>` |
 | Missing rkbin blobs | Submodule not initialized | `git submodule update --init --recursive` |
 
 ## Kernel Config
