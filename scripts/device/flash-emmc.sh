@@ -19,7 +19,12 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Source common libraries for consistent UI
+source "${SCRIPT_DIR}/../lib/ui.sh"
+
+# Override PROJECT_ROOT since we're in device/ not scripts/
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 RKBIN_DIR="${PROJECT_ROOT}/rkbin"
 OUTPUT_DIR="${PROJECT_ROOT}/output"
 UBOOT_DIR="${OUTPUT_DIR}/uboot"
@@ -28,16 +33,6 @@ UBOOT_DIR="${OUTPUT_DIR}/uboot"
 UBOOT_ONLY=false
 WIPE_EMMC=false
 FLASH_LATEST=false
-
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-
-log() { echo -e "${GREEN}[FLASH]${NC} $1"; }
-warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
 # Show usage
 usage() {
