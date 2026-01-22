@@ -1,0 +1,126 @@
+From 380723c7c119ea232cd0793d1a1f7cda9febbe63 Mon Sep 17 00:00:00 2001
+From: Aaron Bockelie <aaronsb@gmail.com>
+Date: Thu, 22 Jan 2026 14:15:04 -0600
+Subject: [PATCH] drm/bridge: dw-hdmi: add DDC I2C timing configuration
+
+---
+ drivers/gpu/drm/bridge/synopsys/dw-hdmi.c | 68 +++++++++++++++++++++++
+ 1 file changed, 68 insertions(+)
+
+diff --git a/drivers/gpu/drm/bridge/synopsys/dw-hdmi.c b/drivers/gpu/drm/bridge/synopsys/dw-hdmi.c
+index 0031f3c54..0973a45f5 100644
+--- a/drivers/gpu/drm/bridge/synopsys/dw-hdmi.c
++++ b/drivers/gpu/drm/bridge/synopsys/dw-hdmi.c
+@@ -116,6 +116,9 @@ struct dw_hdmi_i2c {
+ 	u8			slave_reg;
+ 	bool			is_regaddr;
+ 	bool			is_segment;
++
++	u32			scl_high_ns;
++	u32			scl_low_ns;
+ };
+ 
+ struct dw_hdmi_phy_data {
+@@ -165,6 +168,8 @@ struct dw_hdmi {
+ 	struct pinctrl_state *default_state;
+ 	struct pinctrl_state *unwedge_state;
+ 
++	struct clk *isfr_clk;
++
+ 	struct mutex mutex;		/* for state below and previous_mode */
+ 	enum drm_connector_force force;	/* mutex-protected force state */
+ 	struct drm_connector *curr_conn;/* current connector (only valid when !disabled) */
+@@ -252,6 +257,55 @@ static void hdmi_mask_writeb(struct dw_hdmi *hdmi, u8 data, unsigned int reg,
+ 	hdmi_modb(hdmi, data << shift, mask, reg);
+ }
+ 
++/*
++ * Configure DDC I2C SCL timing based on isfr clock rate.
++ * This is required for reliable EDID reads on some displays.
++ */
++static void dw_hdmi_i2c_set_divs(struct dw_hdmi *hdmi)
++{
++	struct dw_hdmi_i2c *i2c = hdmi->i2c;
++	unsigned long clk_rate_khz;
++	unsigned long low_ns, high_ns;
++	unsigned long div_low, div_high;
++
++	if (!hdmi->isfr_clk || !i2c)
++		return;
++
++	/* Standard-mode timing defaults from Rockchip BSP */
++	if (i2c->scl_high_ns < 4000)
++		high_ns = 4708;
++	else
++		high_ns = i2c->scl_high_ns;
++
++	if (i2c->scl_low_ns < 4700)
++		low_ns = 4916;
++	else
++		low_ns = i2c->scl_low_ns;
++
++	clk_rate_khz = DIV_ROUND_UP(clk_get_rate(hdmi->isfr_clk), 1000);
++	if (clk_rate_khz == 0)
++		return;
++
++	div_low = (clk_rate_khz * low_ns) / 1000000;
++	if ((clk_rate_khz * low_ns) % 1000000)
++		div_low++;
++
++	div_high = (clk_rate_khz * high_ns) / 1000000;
++	if ((clk_rate_khz * high_ns) % 1000000)
++		div_high++;
++
++	if (div_low > 0xffff)
++		div_low = 0xffff;
++	if (div_high > 0xffff)
++		div_high = 0xffff;
++
++	/* Program SCL high and low count registers */
++	hdmi_writeb(hdmi, div_high & 0xff, HDMI_I2CM_SS_SCL_HCNT_0_ADDR);
++	hdmi_writeb(hdmi, (div_high >> 8) & 0xff, HDMI_I2CM_SS_SCL_HCNT_1_ADDR);
++	hdmi_writeb(hdmi, div_low & 0xff, HDMI_I2CM_SS_SCL_LCNT_0_ADDR);
++	hdmi_writeb(hdmi, (div_low >> 8) & 0xff, HDMI_I2CM_SS_SCL_LCNT_1_ADDR);
++}
++
+ static void dw_hdmi_i2c_init(struct dw_hdmi *hdmi)
+ {
+ 	hdmi_writeb(hdmi, HDMI_PHY_I2CM_INT_ADDR_DONE_POL,
+@@ -512,6 +566,14 @@ static struct i2c_adapter *dw_hdmi_i2c_adapter(struct dw_hdmi *hdmi)
+ 	mutex_init(&i2c->lock);
+ 	init_completion(&i2c->cmp);
+ 
++	/* Parse optional DDC I2C timing from device tree */
++	if (hdmi->dev->of_node) {
++		of_property_read_u32(hdmi->dev->of_node,
++			"ddc-i2c-scl-high-time-ns", &i2c->scl_high_ns);
++		of_property_read_u32(hdmi->dev->of_node,
++			"ddc-i2c-scl-low-time-ns", &i2c->scl_low_ns);
++	}
++
+ 	adap = &i2c->adap;
+ 	adap->owner = THIS_MODULE;
+ 	adap->dev.parent = hdmi->dev;
+@@ -528,6 +590,9 @@ static struct i2c_adapter *dw_hdmi_i2c_adapter(struct dw_hdmi *hdmi)
+ 
+ 	hdmi->i2c = i2c;
+ 
++	/* Configure SCL timing now that i2c struct is ready */
++	dw_hdmi_i2c_set_divs(hdmi);
++
+ 	dev_info(hdmi->dev, "registered %s I2C bus driver\n", adap->name);
+ 
+ 	return adap;
+@@ -3404,6 +3469,9 @@ struct dw_hdmi *dw_hdmi_probe(struct platform_device *pdev,
+ 	}
+ 
+ 	clk = devm_clk_get_enabled(hdmi->dev, "isfr");
++	if (!IS_ERR(clk))
++		hdmi->isfr_clk = clk;
++
+ 	if (IS_ERR(clk)) {
+ 		ret = PTR_ERR(clk);
+ 		dev_err(hdmi->dev, "Unable to get HDMI isfr clk: %d\n", ret);
+-- 
+2.52.0
+
