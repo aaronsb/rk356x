@@ -138,3 +138,33 @@ check_uboot_artifacts() {
         return 1
     fi
 }
+
+# Check if final image is stale (dependencies are newer)
+# Returns 0 (true) if image needs rebuild, 1 (false) if up-to-date
+check_image_needs_rebuild() {
+    local final_image kernel_deb rootfs_img
+
+    final_image=$(ls -1t "${OUTPUT_DIR}"/rk3568-debian-*.img 2>/dev/null | grep -v '\.xz$' | head -1)
+    kernel_deb=$(ls -1t "${KERNEL_DEBS_DIR}"/linux-image-*.deb 2>/dev/null | head -1)
+    rootfs_img="${ROOTFS_IMAGE}"
+
+    # No image exists - needs build
+    [[ -z "$final_image" ]] || [[ ! -f "$final_image" ]] && return 0
+
+    # Check if kernel is newer than image
+    if [[ -n "$kernel_deb" ]] && [[ -f "$kernel_deb" ]]; then
+        if [[ "$kernel_deb" -nt "$final_image" ]]; then
+            return 0
+        fi
+    fi
+
+    # Check if rootfs is newer than image
+    if [[ -f "$rootfs_img" ]]; then
+        if [[ "$rootfs_img" -nt "$final_image" ]]; then
+            return 0
+        fi
+    fi
+
+    # Image is up-to-date
+    return 1
+}
