@@ -605,6 +605,13 @@ cmd_build() {
 
     trap - EXIT
 
+    # Write checksum for build tracking
+    if [[ -f "${ROOTFS_IMAGE}" ]]; then
+        local checksum
+        checksum=$(write_component_checksum "rootfs" "${ROOTFS_IMAGE}")
+        log "Rootfs checksum: ${checksum:0:16}..."
+    fi
+
     log "Rootfs build complete!"
     kv "Image" "${ROOTFS_IMAGE}"
     kv "Profile" "${PROFILE}"

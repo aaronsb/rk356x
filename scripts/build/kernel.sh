@@ -259,6 +259,15 @@ build_deb_packages() {
 
     log "Kernel .deb packages created in output/kernel-debs/"
     ls -lh "${PROJECT_ROOT}/output/kernel-debs/"
+
+    # Write checksum for build tracking
+    local image_deb
+    image_deb=$(ls -1t "${PROJECT_ROOT}/output/kernel-debs"/linux-image-*.deb 2>/dev/null | head -1)
+    if [[ -n "$image_deb" ]]; then
+        local checksum
+        checksum=$(write_component_checksum "kernel" "$image_deb")
+        log "Kernel checksum: ${checksum:0:16}..."
+    fi
 }
 
 # ============================================================================

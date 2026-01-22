@@ -403,6 +403,10 @@ cmd_build() {
     compress_image
     calculate_checksums
 
+    # Write build manifest for dependency tracking
+    write_build_manifest "${IMAGE_FILE}"
+    log "Build manifest: ${IMAGE_FILE}.manifest"
+
     show_build_summary
 }
 

@@ -14,6 +14,76 @@ KERNEL_VERSION="${KERNEL_VERSION:-6.12}"
 OUTPUT_DIR="${OUTPUT_DIR:-${PROJECT_ROOT}/output}"
 KERNEL_DEBS_DIR="${KERNEL_DEBS_DIR:-${OUTPUT_DIR}/kernel-debs}"
 ROOTFS_IMAGE="${ROOTFS_IMAGE:-${PROJECT_ROOT}/rootfs/debian-rootfs.img}"
+BUILD_MANIFEST="${BUILD_MANIFEST:-${OUTPUT_DIR}/.build-manifest}"
+
+# ============================================================================
+# Checksum/Manifest Functions
+# ============================================================================
+
+# Generate checksum for a file, return just the hash
+file_checksum() {
+    local file="$1"
+    [[ -f "$file" ]] || return 1
+    sha256sum "$file" | cut -d' ' -f1
+}
+
+# Write component checksum to output directory
+# Usage: write_component_checksum <component> <file>
+write_component_checksum() {
+    local component="$1"
+    local file="$2"
+    local checksum_file="${OUTPUT_DIR}/.${component}-checksum"
+
+    [[ -f "$file" ]] || return 1
+    mkdir -p "${OUTPUT_DIR}"
+
+    local checksum
+    checksum=$(file_checksum "$file")
+    echo "${checksum}  $(basename "$file")" > "$checksum_file"
+    echo "$checksum"
+}
+
+# Read component checksum from output directory
+# Returns checksum or empty string if not found
+read_component_checksum() {
+    local component="$1"
+    local checksum_file="${OUTPUT_DIR}/.${component}-checksum"
+
+    [[ -f "$checksum_file" ]] || return 1
+    cut -d' ' -f1 "$checksum_file"
+}
+
+# Write build manifest after image assembly
+# Records checksums of all components that went into the image
+write_build_manifest() {
+    local image_file="$1"
+    local kernel_checksum rootfs_checksum image_checksum
+
+    kernel_checksum=$(read_component_checksum "kernel" 2>/dev/null || echo "")
+    rootfs_checksum=$(read_component_checksum "rootfs" 2>/dev/null || echo "")
+    image_checksum=$(file_checksum "$image_file" 2>/dev/null || echo "")
+
+    cat > "${BUILD_MANIFEST}" << EOF
+# Build manifest - records component checksums used in assembled image
+# Generated: $(date -Iseconds)
+BUILD_ID=$(uuidgen 2>/dev/null || date +%s)
+BOARD=${BOARD_NAME:-unknown}
+IMAGE=$(basename "$image_file")
+IMAGE_SHA256=${image_checksum}
+KERNEL_SHA256=${kernel_checksum}
+ROOTFS_SHA256=${rootfs_checksum}
+EOF
+
+    # Also create a .manifest file alongside the image
+    cp "${BUILD_MANIFEST}" "${image_file}.manifest"
+}
+
+# Read a value from the build manifest
+read_manifest_value() {
+    local key="$1"
+    [[ -f "${BUILD_MANIFEST}" ]] || return 1
+    grep "^${key}=" "${BUILD_MANIFEST}" | cut -d'=' -f2
+}
 
 # Check for kernel build artifacts
 # Returns: FOUND, FOUND_RAW, or NOT_FOUND (first line)
@@ -139,32 +209,38 @@ check_uboot_artifacts() {
     fi
 }
 
-# Check if final image is stale (dependencies are newer)
+# Check if final image is stale (dependencies have changed)
 # Returns 0 (true) if image needs rebuild, 1 (false) if up-to-date
+# Uses checksums from build manifest for reliable comparison
 check_image_needs_rebuild() {
-    local final_image kernel_deb rootfs_img
+    local final_image
 
     final_image=$(ls -1t "${OUTPUT_DIR}"/rk3568-debian-*.img 2>/dev/null | grep -v '\.xz$' | head -1)
-    kernel_deb=$(ls -1t "${KERNEL_DEBS_DIR}"/linux-image-*.deb 2>/dev/null | head -1)
-    rootfs_img="${ROOTFS_IMAGE}"
 
     # No image exists - needs build
     [[ -z "$final_image" ]] || [[ ! -f "$final_image" ]] && return 0
 
-    # Check if kernel is newer than image
-    if [[ -n "$kernel_deb" ]] && [[ -f "$kernel_deb" ]]; then
-        if [[ "$kernel_deb" -nt "$final_image" ]]; then
-            return 0
-        fi
+    # No manifest - needs rebuild (legacy image or manifest deleted)
+    [[ -f "${BUILD_MANIFEST}" ]] || return 0
+
+    # Compare current component checksums to what's in the manifest
+    local manifest_kernel manifest_rootfs current_kernel current_rootfs
+
+    manifest_kernel=$(read_manifest_value "KERNEL_SHA256")
+    manifest_rootfs=$(read_manifest_value "ROOTFS_SHA256")
+    current_kernel=$(read_component_checksum "kernel" 2>/dev/null || echo "")
+    current_rootfs=$(read_component_checksum "rootfs" 2>/dev/null || echo "")
+
+    # If kernel checksum changed, rebuild
+    if [[ -n "$current_kernel" ]] && [[ "$current_kernel" != "$manifest_kernel" ]]; then
+        return 0
     fi
 
-    # Check if rootfs is newer than image
-    if [[ -f "$rootfs_img" ]]; then
-        if [[ "$rootfs_img" -nt "$final_image" ]]; then
-            return 0
-        fi
+    # If rootfs checksum changed, rebuild
+    if [[ -n "$current_rootfs" ]] && [[ "$current_rootfs" != "$manifest_rootfs" ]]; then
+        return 0
     fi
 
-    # Image is up-to-date
+    # Checksums match - image is up-to-date
     return 1
 }
