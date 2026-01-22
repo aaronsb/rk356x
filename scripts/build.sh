@@ -223,11 +223,12 @@ clean_all() {
 stage_kernel() {
     header "Stage 1: Kernel Build"
 
-    local status
-    status=$(check_kernel_artifacts | head -1)
+    local artifact_output status
+    artifact_output=$(check_kernel_artifacts 2>/dev/null) || true
+    status=$(echo "$artifact_output" | head -1)
 
     if [[ "$status" == "FOUND" ]]; then
-        check_kernel_artifacts | tail -n +2
+        echo "$artifact_output" | tail -n +2
         echo ""
 
         if [[ "$AUTO_MODE" == "true" ]]; then
@@ -247,11 +248,12 @@ stage_kernel() {
 stage_rootfs() {
     header "Stage 2: Rootfs Build"
 
-    local status
-    status=$(check_rootfs_artifact | head -1)
+    local artifact_output status
+    artifact_output=$(check_rootfs_artifact 2>/dev/null) || true
+    status=$(echo "$artifact_output" | head -1)
 
     if [[ "$status" == "FOUND" ]]; then
-        check_rootfs_artifact | tail -n +2
+        echo "$artifact_output" | tail -n +2
         echo ""
 
         if [[ "$AUTO_MODE" == "true" ]]; then
@@ -273,11 +275,12 @@ stage_uboot() {
 
     header "Stage 2.5: U-Boot Build"
 
-    local status
-    status=$(check_uboot_artifacts | head -1)
+    local artifact_output status
+    artifact_output=$(check_uboot_artifacts 2>/dev/null) || true
+    status=$(echo "$artifact_output" | head -1)
 
     if [[ "$status" == "FOUND" ]]; then
-        check_uboot_artifacts | tail -n +2
+        echo "$artifact_output" | tail -n +2
         echo ""
 
         if [[ "$AUTO_MODE" == "true" ]]; then
@@ -298,18 +301,21 @@ stage_image() {
     header "Stage 3: Image Assembly"
 
     # Check dependencies
-    local kernel_status rootfs_status
-    kernel_status=$(check_kernel_artifacts | head -1)
-    rootfs_status=$(check_rootfs_artifact | head -1)
+    local kernel_output rootfs_output kernel_status rootfs_status
+    kernel_output=$(check_kernel_artifacts 2>/dev/null) || true
+    rootfs_output=$(check_rootfs_artifact 2>/dev/null) || true
+    kernel_status=$(echo "$kernel_output" | head -1)
+    rootfs_status=$(echo "$rootfs_output" | head -1)
 
     [[ "$kernel_status" == "FOUND" ]] || error "Kernel not found. Run: ./scripts/build/kernel.sh ${BOARD_NAME} build"
     [[ "$rootfs_status" == "FOUND" ]] || error "Rootfs not found. Run: ./scripts/build/rootfs.sh ${BOARD_NAME} build"
 
-    local status
-    status=$(check_image_artifacts | head -1)
+    local artifact_output status
+    artifact_output=$(check_image_artifacts 2>/dev/null) || true
+    status=$(echo "$artifact_output" | head -1)
 
     if [[ "$status" == "FOUND" ]]; then
-        check_image_artifacts | tail -n +2
+        echo "$artifact_output" | tail -n +2
         echo ""
 
         if [[ "$AUTO_MODE" == "true" ]]; then
@@ -369,16 +375,33 @@ show_summary() {
     echo -e "${BOLD}Artifacts:${NC}"
     echo ""
 
+    local artifact_output
+
     echo -e "${BOLD}1. Kernel${NC}"
-    check_kernel_artifacts | tail -n +2 || echo "   Not found"
+    artifact_output=$(check_kernel_artifacts 2>/dev/null) || true
+    if [[ -n "$artifact_output" ]]; then
+        echo "$artifact_output" | tail -n +2
+    else
+        echo "   Not found"
+    fi
     echo ""
 
     echo -e "${BOLD}2. Rootfs${NC}"
-    check_rootfs_artifact | tail -n +2 || echo "   Not found"
+    artifact_output=$(check_rootfs_artifact 2>/dev/null) || true
+    if [[ -n "$artifact_output" ]]; then
+        echo "$artifact_output" | tail -n +2
+    else
+        echo "   Not found"
+    fi
     echo ""
 
     echo -e "${BOLD}3. Final Image${NC}"
-    check_image_artifacts | tail -n +2 || echo "   Not found"
+    artifact_output=$(check_image_artifacts 2>/dev/null) || true
+    if [[ -n "$artifact_output" ]]; then
+        echo "$artifact_output" | tail -n +2
+    else
+        echo "   Not found"
+    fi
     echo ""
 
     local final_image

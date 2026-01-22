@@ -62,7 +62,7 @@ run_in_docker_if_needed() {
     # Re-exec in Docker
     local user_id="${SUDO_UID:-$(id -u)}"
     local group_id="${SUDO_GID:-$(id -g)}"
-    local tty_flags="-t"
+    local tty_flags="-i"
     [[ -t 0 ]] && tty_flags="-it"
 
     info "Running build in Docker container..."
@@ -316,7 +316,7 @@ cmd_info() {
 
     echo ""
     info "Artifact Status:"
-    check_kernel_artifacts
+    check_kernel_artifacts || true
 }
 
 # ============================================================================

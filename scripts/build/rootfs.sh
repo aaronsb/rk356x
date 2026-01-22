@@ -83,7 +83,9 @@ run_in_docker_if_needed() {
     mkdir -p "${PROJECT_ROOT}/.cache/rootfs-apt-lists"
 
     info "Running rootfs build in Docker (privileged for chroot)..."
-    docker run --rm -it \
+    local docker_flags="-i"
+    [[ -t 0 ]] && docker_flags="-it"
+    docker run --rm ${docker_flags} \
         --privileged \
         --network=host \
         -v "${PROJECT_ROOT}:/work" \
@@ -161,7 +163,7 @@ cmd_info() {
 
     echo ""
     info "Artifact Status:"
-    check_rootfs_artifact
+    check_rootfs_artifact || true
 }
 
 # ============================================================================

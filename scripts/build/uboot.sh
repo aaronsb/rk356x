@@ -62,9 +62,11 @@ run_in_docker_if_needed() {
 
     local user_id="${SUDO_UID:-$(id -u)}"
     local group_id="${SUDO_GID:-$(id -g)}"
+    local tty_flags="-i"
+    [[ -t 0 ]] && tty_flags="-it"
 
     info "Running build in Docker container..."
-    exec docker run --rm -t \
+    exec docker run --rm ${tty_flags} \
         -v "${PROJECT_ROOT}:${PROJECT_ROOT}" \
         -w "${PROJECT_ROOT}" \
         -u "${user_id}:${group_id}" \
@@ -264,7 +266,7 @@ cmd_info() {
 
     echo ""
     info "Artifact Status:"
-    check_uboot_artifacts
+    check_uboot_artifacts || true
 }
 
 # ============================================================================

@@ -52,16 +52,19 @@ cmd_build() {
     fi
 
     # Check dependencies
-    local kernel_status rootfs_status
-    kernel_status=$(check_kernel_artifacts | head -1)
-    rootfs_status=$(check_rootfs_artifact | head -1)
+    local kernel_output rootfs_output kernel_status rootfs_status
+    kernel_output=$(check_kernel_artifacts 2>/dev/null) || true
+    rootfs_output=$(check_rootfs_artifact 2>/dev/null) || true
+    kernel_status=$(echo "$kernel_output" | head -1)
+    rootfs_status=$(echo "$rootfs_output" | head -1)
 
     [[ "$kernel_status" == "FOUND" ]] || error "Kernel artifacts not found. Run: ./scripts/build/kernel.sh $BOARD_NAME build"
     [[ "$rootfs_status" == "FOUND" ]] || error "Rootfs not found. Run: ./scripts/build/rootfs.sh $BOARD_NAME build"
 
     if [[ "$WITH_UBOOT" == "true" ]]; then
-        local uboot_status
-        uboot_status=$(check_uboot_artifacts | head -1)
+        local uboot_output uboot_status
+        uboot_output=$(check_uboot_artifacts 2>/dev/null) || true
+        uboot_status=$(echo "$uboot_output" | head -1)
         [[ "$uboot_status" == "FOUND" ]] || error "U-Boot not found. Run: ./scripts/build/uboot.sh $BOARD_NAME build"
         info "U-Boot will be included in image"
     fi
@@ -109,13 +112,17 @@ cmd_info() {
 
     echo ""
     info "Required Artifacts:"
-    echo "  Kernel: $(check_kernel_artifacts | head -1)"
-    echo "  Rootfs: $(check_rootfs_artifact | head -1)"
-    echo "  U-Boot: $(check_uboot_artifacts | head -1)"
+    local ko ro uo
+    ko=$(check_kernel_artifacts 2>/dev/null) || true
+    ro=$(check_rootfs_artifact 2>/dev/null) || true
+    uo=$(check_uboot_artifacts 2>/dev/null) || true
+    echo "  Kernel: $(echo "$ko" | head -1)"
+    echo "  Rootfs: $(echo "$ro" | head -1)"
+    echo "  U-Boot: $(echo "$uo" | head -1)"
 
     echo ""
     info "Output Images:"
-    check_image_artifacts
+    check_image_artifacts 2>/dev/null || true
 }
 
 # ============================================================================
