@@ -162,7 +162,7 @@ find_uboot() {
     UBOOT_BIN="${UBOOT_DIR}/u-boot-rockchip.bin"
 
     if [ ! -f "$UBOOT_BIN" ]; then
-        error "U-Boot not found at $UBOOT_BIN. Build first with: ./scripts/build-kernel.sh"
+        error "U-Boot not found at $UBOOT_BIN. Build first with: ./scripts/build/uboot.sh <board> build"
     fi
 
     log "U-Boot: $(basename "$UBOOT_BIN")"
@@ -199,7 +199,7 @@ find_image() {
         IMAGE=$(ls -t "${OUTPUT_DIR}"/rk3568-debian-*.img 2>/dev/null | head -1)
 
         if [ -z "$IMAGE" ] || [ ! -f "$IMAGE" ]; then
-            error "No image found. Build first with: ./scripts/build-kernel.sh && ./scripts/assemble-debian-image.sh"
+            error "No image found. Build first with: ./scripts/build.sh <board> or ./scripts/device/assemble.sh <board> build"
         fi
     fi
 
