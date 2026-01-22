@@ -272,7 +272,7 @@ if [ "$PROFILE" = "full" ]; then
         vim git wget curl htop net-tools ethtool i2c-tools usbutils pciutils rsync parted
 else
     apt-get install -y $APT_OPTS \
-        nano wget htop ethtool rsync parted u-boot-tools i2c-tools
+        nano wget htop ethtool rsync parted u-boot-tools i2c-tools bsdmainutils edid-decode
 fi
 
 # Users
