@@ -13,19 +13,24 @@ This project provides a production-ready Debian-based Linux system for RK356x AR
 git clone --recursive https://github.com/aaronsb/rk356x.git
 cd rk356x
 
-# Build complete system (kernel + rootfs + image)
-./build.sh
+# Build complete system (interactive, recommended)
+./scripts/build.sh sz3568-v1.2
+
+# Auto mode: build what's missing
+./scripts/build.sh --auto sz3568-v1.2
 
 # Or build components individually
-./scripts/build-kernel.sh          # Kernel 6.12 with custom DTBs
-./scripts/build-debian-rootfs.sh   # Debian 12 rootfs
-./scripts/assemble-debian-image.sh # Create bootable SD card image
+./scripts/build/kernel.sh sz3568-v1.2 build      # Kernel 6.12 with custom DTBs
+./scripts/build/rootfs.sh sz3568-v1.2 build      # Debian 12 rootfs
+sudo ./scripts/device/assemble.sh sz3568-v1.2 build  # Create bootable image
 ```
 
 Output image location: `output/rk3568-debian-*.img.xz`
 
 Flash to SD card:
 ```bash
+sudo ./scripts/device/flash-sd.sh sz3568-v1.2 flash
+# Or manually:
 xzcat output/rk3568-debian-*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress
 ```
 
@@ -58,17 +63,17 @@ Default credentials: `rock` / `rock`
 
 ```bash
 # SZ3568 board (default)
-./scripts/build-kernel.sh rk3568_sz3568
+./scripts/build.sh sz3568-v1.2
 
 # DC-A568 board
-./scripts/build-kernel.sh rk3568_custom
+./scripts/build.sh dc-a568-v06
 ```
 
 ### Rootfs Profiles
 
 ```bash
-PROFILE=minimal ./scripts/build-debian-rootfs.sh  # Lightweight (default)
-PROFILE=full ./scripts/build-debian-rootfs.sh     # Full desktop + dev tools
+./scripts/build/rootfs.sh sz3568-v1.2 build                    # Minimal (default)
+./scripts/build/rootfs.sh --profile full sz3568-v1.2 build     # Full desktop + dev tools
 ```
 
 ---
@@ -77,10 +82,10 @@ PROFILE=full ./scripts/build-debian-rootfs.sh     # Full desktop + dev tools
 
 | Document | Description |
 |----------|-------------|
-| [README-DEBIAN-BUILD.md](README-DEBIAN-BUILD.md) | Complete build system guide |
+| [HOW-TO-BUILD.md](HOW-TO-BUILD.md) | Build instructions and commands |
 | [docs/adr/](docs/adr/) | Architecture Decision Records |
-| [CLAUDE.md](CLAUDE.md) | Technical context and configuration |
-| [boards/](boards/) | Board-specific documentation |
+| [CLAUDE.md](CLAUDE.md) | Technical context and debugging |
+| [boards/](boards/) | Board configurations |
 
 ### Architecture Decisions
 
@@ -213,26 +218,26 @@ Use this when you have physical access and can put the board in maskrom mode. Th
 **Flashing Commands:**
 ```bash
 # Show usage help
-./scripts/flash-emmc.sh
+./scripts/device/flash-emmc.sh
 
 # Flash complete image to eMMC
-sudo ./scripts/flash-emmc.sh --latest
+sudo ./scripts/device/flash-emmc.sh --latest
 
 # Flash just U-Boot (board will boot from SD card)
-sudo ./scripts/flash-emmc.sh --uboot-only
+sudo ./scripts/device/flash-emmc.sh --uboot-only
 
 # Wipe eMMC and flash specific image
-sudo ./scripts/flash-emmc.sh --wipe /path/to/image.img
+sudo ./scripts/device/flash-emmc.sh --wipe /path/to/image.img
 ```
 
 **Cold Flash Recovery (unknown/OEM firmware):**
 ```bash
 # 1. Put board in maskrom mode (see above)
 # 2. Wipe and flash fresh image
-sudo ./scripts/flash-emmc.sh --wipe --latest
+sudo ./scripts/device/flash-emmc.sh --wipe --latest
 
 # Or just install U-Boot to boot from SD card
-sudo ./scripts/flash-emmc.sh --uboot-only
+sudo ./scripts/device/flash-emmc.sh --uboot-only
 ```
 
 ### Method 2: On-Device Cloning (setup-emmc)
@@ -268,20 +273,30 @@ This partitions the eMMC, copies the kernel/DTB, and clones the rootfs from SD t
 
 ```
 rk356x/
-├── build.sh                 # Main build orchestrator
-├── scripts/                 # Build and utility scripts
-│   ├── build-kernel.sh      # Compile kernel + DTBs
-│   ├── build-debian-rootfs.sh  # Create Debian rootfs
-│   ├── build-uboot.sh       # Compile U-Boot
-│   ├── assemble-debian-image.sh  # Create bootable image
-│   └── flash-emmc.sh        # Flash to eMMC via USB OTG
+├── scripts/
+│   ├── build.sh             # Thin orchestrator
+│   ├── lib/                 # Shared libraries
+│   │   ├── common.sh        # Loads all libs
+│   │   ├── ui.sh            # Colors, logging
+│   │   ├── board.sh         # Board lookup
+│   │   └── artifacts.sh     # Artifact detection
+│   ├── build/               # Build scripts
+│   │   ├── kernel.sh        # Compile kernel + DTBs
+│   │   ├── rootfs.sh        # Create Debian rootfs
+│   │   └── uboot.sh         # Compile U-Boot
+│   └── device/              # Device scripts
+│       ├── assemble.sh      # Create bootable image
+│       ├── flash-sd.sh      # Flash to SD card
+│       └── flash-emmc.sh    # Flash to eMMC via USB OTG
+├── boards/                  # Board configurations
+│   ├── sz3568-v1.2/board.conf
+│   └── dc-a568-v06/board.conf
 ├── external/custom/         # Board customizations
 │   └── board/rk3568/
 │       ├── dts/rockchip/    # Device trees
 │       ├── patches/linux/   # Kernel patches
 │       ├── rootfs-overlay/  # Files copied to rootfs
 │       └── kernel.config    # Kernel config fragment
-├── boards/                  # Board documentation
 ├── docs/                    # Project documentation
 │   └── adr/                 # Architecture decisions
 ├── rkbin/                   # Vendor blobs (submodule)
@@ -292,12 +307,13 @@ rk356x/
 
 | Script | Purpose |
 |--------|---------|
-| `build.sh` | Full build: kernel + rootfs + image |
-| `scripts/build-kernel.sh` | Compile kernel, modules, and DTBs |
-| `scripts/build-debian-rootfs.sh` | Create Debian rootfs with packages |
-| `scripts/build-uboot.sh` | Compile mainline U-Boot |
-| `scripts/assemble-debian-image.sh` | Combine components into bootable image |
-| `scripts/flash-emmc.sh` | Flash image to eMMC via maskrom mode |
+| `scripts/build.sh` | Orchestrator: sequences all stages |
+| `scripts/build/kernel.sh` | Compile kernel, modules, and DTBs |
+| `scripts/build/rootfs.sh` | Create Debian rootfs with packages |
+| `scripts/build/uboot.sh` | Compile mainline U-Boot |
+| `scripts/device/assemble.sh` | Combine components into bootable image |
+| `scripts/device/flash-sd.sh` | Flash image to SD card |
+| `scripts/device/flash-emmc.sh` | Flash image to eMMC via maskrom mode |
 
 ---
 

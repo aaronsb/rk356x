@@ -204,8 +204,9 @@ Create an automated system to assemble U-Boot, kernel, device tree, and rootfs i
 
 - `docs/image-layout.md` - Image structure documentation
 - `docs/flash-procedure.md` - Flashing instructions
-- `scripts/assemble-image.sh` - Image assembly script
-- `scripts/flash-image.sh` - Flash helper script
+- `scripts/device/assemble.sh` - Image assembly script
+- `scripts/device/flash-sd.sh` - Flash to SD card script
+- `scripts/device/flash-emmc.sh` - Flash to eMMC script
 - `output/firmware.img` - Complete firmware image
 - `output/firmware.img.xz` - Compressed image
 - `output/SHA256SUMS` - Checksums

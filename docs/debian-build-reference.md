@@ -22,7 +22,7 @@ This build system creates bootable Debian/Ubuntu images for Rockchip RK3568 boar
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ 1. Build Kernel (build-kernel.sh)                      │
+│ 1. Build Kernel (scripts/build/kernel.sh)              │
 │    ├─ Clone Rockchip 6.6 kernel                        │
 │    ├─ Copy custom DTBs (rk3568-sz3568.dts, etc.)       │
 │    ├─ Apply patches (Maxio PHY, DMA timeout fix)       │
@@ -32,7 +32,7 @@ This build system creates bootable Debian/Ubuntu images for Rockchip RK3568 boar
 └─────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────┐
-│ 2. Build Rootfs (build-debian-rootfs.sh)               │
+│ 2. Build Rootfs (scripts/build/rootfs.sh)              │
 │    ├─ Download Ubuntu 24.04.3 base                     │
 │    ├─ Install XFCE desktop via apt                     │
 │    ├─ Install kernel .debs                             │
@@ -42,7 +42,7 @@ This build system creates bootable Debian/Ubuntu images for Rockchip RK3568 boar
 └─────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────┐
-│ 3. Assemble Image (assemble-image.sh)                  │
+│ 3. Assemble Image (scripts/device/assemble.sh)         │
 │    ├─ Build U-Boot                                     │
 │    ├─ Create partitioned image                         │
 │    ├─ Install bootloader                               │
@@ -86,17 +86,17 @@ sudo apt install \
 
 #### Option 1: Orchestrator Script (Recommended)
 
-The `build.sh` orchestrator guides you through the build process interactively:
+The orchestrator (`scripts/build.sh`) guides you through the build process interactively:
 
 ```bash
 # Interactive mode (recommended for first-time builds)
-./build.sh rk3568_sz3568
+./scripts/build.sh sz3568-v1.2
 
 # Auto mode: build what's missing, flash to SD card
-sudo ./build.sh --auto --device /dev/sdX rk3568_sz3568
+./scripts/build.sh --auto --device /dev/sdX sz3568-v1.2
 
 # See all options
-./build.sh --help
+./scripts/build.sh --help
 ```
 
 **Features:**
@@ -112,17 +112,18 @@ Run individual scripts if you need fine-grained control:
 
 ```bash
 # 1. Build kernel (automatically uses Docker if available)
-./scripts/build-kernel.sh rk3568_sz3568
+./scripts/build/kernel.sh sz3568-v1.2 build
 
 # 2. Build rootfs (automatically uses Docker if available)
-./scripts/build-debian-rootfs.sh
+./scripts/build/rootfs.sh sz3568-v1.2 build
 
 # 3. Assemble bootable image (needs sudo for loop devices)
-sudo ./scripts/assemble-debian-image.sh rk3568_sz3568
+sudo ./scripts/device/assemble.sh sz3568-v1.2 build
 
 # 4. Flash to SD card
+sudo ./scripts/device/flash-sd.sh sz3568-v1.2 flash
+# Or manually:
 sudo dd if=output/rk3568-debian-*.img of=/dev/sdX bs=4M status=progress conv=fsync
-# Or use the compressed .xz file with balenaEtcher
 ```
 
 **How Docker works:**
@@ -139,19 +140,19 @@ sudo dd if=output/rk3568-debian-*.img of=/dev/sdX bs=4M status=progress conv=fsy
 - Image assembly: ~5-10 minutes
 - **Total: ~30-45 minutes** (vs 4-6 hours with Buildroot!)
 
-#### Option 2: Iterative Development
+#### Option 3: Iterative Development
 
 ```bash
 # Build kernel once
-./scripts/build-kernel.sh rk3568_sz3568
+./scripts/build/kernel.sh sz3568-v1.2 build
 
 # Modify kernel config, DTB, or patches
 # Rebuild only kernel
-./scripts/build-kernel.sh rk3568_sz3568
+./scripts/build/kernel.sh sz3568-v1.2 build
 
 # Kernel .debs will be updated in output/kernel-debs/
 # Re-run rootfs build to install updated kernel
-./scripts/build-debian-rootfs.sh
+./scripts/build/rootfs.sh sz3568-v1.2 build
 ```
 
 ## What Gets Built
@@ -215,9 +216,15 @@ rk356x/
 │   │   └── linux-headers-*.deb
 │   └── rk3568-*.img               # Final flashable images
 └── scripts/
-    ├── build-kernel.sh            # Kernel build script
-    ├── build-debian-rootfs.sh     # Rootfs build script
-    └── assemble-image.sh          # Image assembly script
+    ├── build.sh                   # Build orchestrator
+    ├── build/
+    │   ├── kernel.sh              # Kernel build script
+    │   ├── rootfs.sh              # Rootfs build script
+    │   └── uboot.sh               # U-Boot build script
+    └── device/
+        ├── assemble.sh            # Image assembly script
+        ├── flash-sd.sh            # Flash to SD card
+        └── flash-emmc.sh          # Flash to eMMC
 ```
 
 ## Customization
@@ -226,26 +233,19 @@ rk356x/
 
 1. Add patch to `external/custom/patches/linux/`
 2. Update `external/custom/board/rk3568/kernel.config` if needed
-3. Rebuild kernel: `./scripts/build-kernel.sh`
+3. Rebuild kernel: `./scripts/build/kernel.sh <board> build`
 
 ### Modifying Device Tree
 
 1. Edit `external/custom/board/rk3568/dts/rockchip/rk3568-*.dts`
-2. Rebuild kernel: `./scripts/build-kernel.sh`
-3. New DTB will be in `kernel-6.6/arch/arm64/boot/dts/rockchip/`
+2. Rebuild kernel: `./scripts/build/kernel.sh <board> build`
+3. New DTB will be in `kernel-6.12/arch/arm64/boot/dts/rockchip/`
 
 ### Adding Rootfs Packages
 
-Edit `scripts/build-debian-rootfs.sh`, add packages to the `apt-get install` section:
+Edit `scripts/build/rootfs.sh`, add packages to the package list or use rootfs-overlay.
 
-```bash
-# Install your packages
-apt-get install -y \
-    your-package-1 \
-    your-package-2
-```
-
-Then rebuild rootfs: `./scripts/build-debian-rootfs.sh`
+Then rebuild rootfs: `./scripts/build/rootfs.sh <board> build`
 
 ### Adding Rootfs Files
 

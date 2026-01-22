@@ -90,8 +90,8 @@ Key implementation:
 
 Build integration:
 ```bash
-./scripts/build-uboot.sh    # Builds mainline U-Boot
-./scripts/assemble-debian-image.sh  # Integrates into image
+./scripts/build/uboot.sh <board> build    # Builds mainline U-Boot
+sudo ./scripts/device/assemble.sh --with-uboot <board> build  # Integrates into image
 ```
 
 On-board management:

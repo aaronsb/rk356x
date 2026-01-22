@@ -19,7 +19,12 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Source common libraries for consistent UI
+source "${SCRIPT_DIR}/../lib/ui.sh"
+
+# Override PROJECT_ROOT since we're in device/ not scripts/
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 RKBIN_DIR="${PROJECT_ROOT}/rkbin"
 OUTPUT_DIR="${PROJECT_ROOT}/output"
 UBOOT_DIR="${OUTPUT_DIR}/uboot"
@@ -28,16 +33,6 @@ UBOOT_DIR="${OUTPUT_DIR}/uboot"
 UBOOT_ONLY=false
 WIPE_EMMC=false
 FLASH_LATEST=false
-
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-
-log() { echo -e "${GREEN}[FLASH]${NC} $1"; }
-warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
 # Show usage
 usage() {
@@ -167,7 +162,7 @@ find_uboot() {
     UBOOT_BIN="${UBOOT_DIR}/u-boot-rockchip.bin"
 
     if [ ! -f "$UBOOT_BIN" ]; then
-        error "U-Boot not found at $UBOOT_BIN. Build first with: ./scripts/build-kernel.sh"
+        error "U-Boot not found at $UBOOT_BIN. Build first with: ./scripts/build/uboot.sh <board> build"
     fi
 
     log "U-Boot: $(basename "$UBOOT_BIN")"
@@ -204,7 +199,7 @@ find_image() {
         IMAGE=$(ls -t "${OUTPUT_DIR}"/rk3568-debian-*.img 2>/dev/null | head -1)
 
         if [ -z "$IMAGE" ] || [ ! -f "$IMAGE" ]; then
-            error "No image found. Build first with: ./scripts/build-kernel.sh && ./scripts/assemble-debian-image.sh"
+            error "No image found. Build first with: ./scripts/build.sh <board> or ./scripts/device/assemble.sh <board> build"
         fi
     fi
 
