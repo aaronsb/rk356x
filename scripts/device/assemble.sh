@@ -186,16 +186,57 @@ install_boot_files() {
     local root_partuuid
     root_partuuid=$(blkid -s PARTUUID -o value "${ROOT_PART}")
 
+    # Create video.conf for user-configurable display resolution
+    cat > "${WORK_DIR}/boot/video.conf" << 'VIDEOCONF'
+# HDMI Video Mode Configuration
+# Uncomment ONE line for your display resolution
+# After editing, reboot for changes to take effect
+
+# Common HDMI resolutions
+VIDEO_MODE=1920x1080@60e
+
+# 720p
+#VIDEO_MODE=1280x720@60e
+
+# Small embedded displays
+#VIDEO_MODE=800x480@60e
+#VIDEO_MODE=1024x600@60e
+
+# Other common resolutions
+#VIDEO_MODE=1280x800@60e
+#VIDEO_MODE=1366x768@60e
+#VIDEO_MODE=1600x900@60e
+
+# Disable forced mode (use EDID auto-detection)
+# Note: EDID may not work on all displays
+#VIDEO_MODE=none
+VIDEOCONF
+
+    log "Video config created (edit /boot/video.conf to change resolution)"
+
     # Create boot script
     cat > "${WORK_DIR}/boot/boot.cmd" << EOF
 # U-Boot boot script for Debian RK3568
+# Video mode configurable via /boot/video.conf
+
 echo "=== Debian RK3568 Boot Script ==="
 
-# Clear existing bootargs
-setenv bootargs
+# Default video mode (fallback if video.conf missing)
+setenv VIDEO_MODE "1920x1080@60e"
 
-# Set bootargs with root PARTUUID
-setenv bootargs "root=PARTUUID=${root_partuuid} rootwait rw console=ttyS2,1500000 earlycon=uart8250,mmio32,0xfe660000 clk_ignore_unused video=HDMI-A-1:1920x1080@60e"
+# Try to load video.conf
+if load \${devtype} \${devnum}:\${distro_bootpart} \${scriptaddr} /video.conf; then
+    env import -t \${scriptaddr} \${filesize}
+    echo "Video mode: \${VIDEO_MODE}"
+fi
+
+# Base bootargs
+setenv bootargs "root=PARTUUID=${root_partuuid} rootwait rw console=ttyS2,1500000 earlycon=uart8250,mmio32,0xfe660000 clk_ignore_unused"
+
+# Add video mode unless set to "none"
+if test "\${VIDEO_MODE}" != "none"; then
+    setenv bootargs "\${bootargs} video=HDMI-A-1:\${VIDEO_MODE}"
+fi
 
 # Load kernel and DTB
 load \${devtype} \${devnum}:\${distro_bootpart} \${kernel_addr_r} /Image

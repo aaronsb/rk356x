@@ -135,6 +135,25 @@ This ensures consistent MAC across reboots without hardcoding.
 - Network status (IP, ethernet speed, WiFi)
 - Hardware status (HDMI, USB devices, storage)
 
+### HDMI Display Configuration
+
+Video mode is configurable via `/boot/video.conf`. Edit the file and uncomment the desired resolution:
+
+```bash
+# On the board, edit:
+nano /boot/video.conf
+
+# Uncomment your resolution, e.g.:
+VIDEO_MODE=800x480@60e
+
+# Reboot to apply
+reboot
+```
+
+Available modes include: 1920x1080, 1280x720, 800x480, 1024x600, 1280x800, 1366x768, 1600x900.
+
+Set `VIDEO_MODE=none` to disable forced mode and use EDID auto-detection (may not work on all displays due to DDC hardware limitations - see `.claude/journal-edid-investigation.md`).
+
 ## Workflow
 
 1. **Modify config** - Edit files in `external/custom/` or `boards/`

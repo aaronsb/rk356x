@@ -293,9 +293,7 @@
 	avdd-1v8-supply = <&vcca1v8_image>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&hdmitx_scl &hdmitx_sda &hdmitxm1_cec>;
-	/* DDC I2C timing for ~50kHz bus speed (matches Rockchip BSP defaults) */
-	ddc-i2c-scl-high-time-ns = <9625>;
-	ddc-i2c-scl-low-time-ns = <10000>;
+	/* DDC I2C: use patch default ~100kHz timing (matches U-Boot 0x71/0x76) */
 	status = "okay";
 };
 
