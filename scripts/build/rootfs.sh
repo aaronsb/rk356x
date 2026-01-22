@@ -261,7 +261,7 @@ if [ "$PROFILE" = "full" ]; then
 fi
 
 # Browsers
-apt-get install -y $APT_OPTS chromium firefox-esr
+apt-get install -y $APT_OPTS chromium firefox-esr cog wpewebkit-driver
 
 # Utilities
 if [ "$PROFILE" = "full" ]; then
@@ -499,6 +499,11 @@ apply_rootfs_overlay() {
 
         # Enable set-mac service
         maybe_sudo chroot "${ROOTFS_WORK}" systemctl enable set-mac.service 2>/dev/null || true
+
+        # Fix ownership of user home directory files
+        if [[ -d "${ROOTFS_WORK}/home/user" ]]; then
+            maybe_sudo chroot "${ROOTFS_WORK}" chown -R user:user /home/user 2>/dev/null || true
+        fi
     fi
 }
 
