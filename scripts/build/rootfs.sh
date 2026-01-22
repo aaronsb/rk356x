@@ -246,8 +246,11 @@ LOCALE
 # Wayland desktop (Sway)
 apt-get install -y $APT_OPTS sway seatd swayidle foot xwayland thunar dbus
 
+# Wayland utilities (essential)
+apt-get install -y $APT_OPTS wlr-randr wl-clipboard grim slurp
+
 if [ "$PROFILE" = "full" ]; then
-    apt-get install -y $APT_OPTS waybar wofi wl-clipboard grim slurp
+    apt-get install -y $APT_OPTS waybar wofi wdisplays kanshi wf-recorder
 fi
 
 # Graphics
@@ -269,7 +272,7 @@ if [ "$PROFILE" = "full" ]; then
         vim git wget curl htop net-tools ethtool i2c-tools usbutils pciutils rsync parted
 else
     apt-get install -y $APT_OPTS \
-        nano wget htop ethtool rsync parted u-boot-tools i2c-tools
+        nano wget htop ethtool rsync parted u-boot-tools i2c-tools bsdmainutils edid-decode
 fi
 
 # Users
