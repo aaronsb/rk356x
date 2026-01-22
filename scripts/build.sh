@@ -319,13 +319,18 @@ stage_image() {
         echo ""
 
         if [[ "$AUTO_MODE" == "true" ]]; then
-            log "Using existing image"
-            return 0
+            # Check if dependencies are newer than the image
+            if check_image_needs_rebuild; then
+                info "Dependencies updated - rebuilding image"
+            else
+                log "Using existing image (up-to-date)"
+                return 0
+            fi
+        else
+            local answer
+            answer=$(ask_yes_no "Rebuild image?" "n")
+            [[ $answer =~ ^[Yy]$ ]] || { log "Skipping image assembly"; return 0; }
         fi
-
-        local answer
-        answer=$(ask_yes_no "Rebuild image?" "n")
-        [[ $answer =~ ^[Yy]$ ]] || { log "Skipping image assembly"; return 0; }
     fi
 
     info "Assembling image..."

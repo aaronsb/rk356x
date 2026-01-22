@@ -69,6 +69,11 @@ verify_sd_device() {
     local size=$(lsblk -d -n -o SIZE "$device" 2>/dev/null)
     local model=$(lsblk -d -n -o MODEL "$device" 2>/dev/null)
 
+    # Check for no medium (0B size means card reader present but no card)
+    if [[ "$size" == "0B" ]] || [[ -z "$size" ]]; then
+        error "No medium found in $device. Insert an SD card and try again."
+    fi
+
     info "Device: $device"
     info "Size:   $size"
     info "Model:  $model"

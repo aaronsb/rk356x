@@ -4,6 +4,10 @@ Complete build system for RK356X (RK3566/RK3568) boards with Debian 12, mainline
 
 This project provides a production-ready Debian-based Linux system for RK356x ARM64 boards, featuring a modern Wayland desktop with hardware-accelerated graphics.
 
+![WebGL Aquarium running at 38 FPS with Cog browser](docs/media/cog-webgl-aquarium-38fps.jpg)
+
+*WebGL Aquarium demo running smoothly at 38 FPS using [Cog browser](docs/cog-browser.md) with Panfrost GPU acceleration.*
+
 ---
 
 ## Quick Start
@@ -47,7 +51,7 @@ Default credentials: `rock` / `rock`
 | GPU Driver | Panfrost (Mesa) | Open-source Mali-G52, desktop OpenGL 3.1 |
 | Root Filesystem | Debian 12 (bookworm) | LTS until June 2028 |
 | Desktop | Wayland + sway | Tiling compositor, hardware accelerated |
-| Browsers | Firefox ESR, Chromium | Both with WebGL support |
+| Browsers | Firefox ESR, Chromium, [Cog](docs/cog-browser.md) | WebGL support, Cog recommended for best performance |
 | Init System | systemd | Networking and service management |
 
 ---
