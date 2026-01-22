@@ -293,9 +293,8 @@
 	avdd-1v8-supply = <&vcca1v8_image>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&hdmitx_scl &hdmitx_sda &hdmitxm1_cec>;
-	/* Slow down DDC I2C to 50kHz for more reliable EDID reads */
-	ddc-i2c-scl-high-time-ns = <9625>;
-	ddc-i2c-scl-low-time-ns = <10000>;
+	/* Let DDC I2C use kernel defaults - explicit timing can cause issues
+	 * (similar pattern to DMA reset fix - let hardware settle naturally) */
 	status = "okay";
 };
 

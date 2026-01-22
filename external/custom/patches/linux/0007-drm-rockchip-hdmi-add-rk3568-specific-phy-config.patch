@@ -1,0 +1,59 @@
+From: Custom <custom@local>
+Date: Wed, 22 Jan 2026 00:00:00 +0000
+Subject: [PATCH] drm/rockchip: hdmi: add RK3568-specific PHY configuration
+
+Add a dedicated PHY configuration table for RK3568 based on the vendor
+BSP. The key differences from the generic Rockchip configuration:
+
+1. Uses no termination resistor (term=0x0000) vs generic (0x0004/0x0005)
+2. Different voltage level control values for each pixel clock
+3. Supports additional pixel clocks (92.8MHz, 165MHz, 185.6MHz, 594MHz)
+
+The vendor BSP uses these values in the rockchip,phy-table DT property.
+Since mainline doesn't support reading PHY config from DT, hardcode the
+RK3568-specific values.
+
+This may improve DDC I2C reliability for EDID reads on some displays
+where the termination resistor configuration affects signal integrity.
+
+Signed-off-by: Custom <custom@local>
+---
+ drivers/gpu/drm/rockchip/dw_hdmi-rockchip.c | 17 ++++++++++++++++-
+ 1 file changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/rockchip/dw_hdmi-rockchip.c b/drivers/gpu/drm/rockchip/dw_hdmi-rockchip.c
+--- a/drivers/gpu/drm/rockchip/dw_hdmi-rockchip.c
++++ b/drivers/gpu/drm/rockchip/dw_hdmi-rockchip.c
+@@ -207,6 +207,21 @@ static const struct dw_hdmi_phy_config rockchip_phy_config[] = {
+ 	{ ~0UL,	     0x0000, 0x0000, 0x0000}
+ };
+
++/*
++ * RK3568-specific PHY configuration from vendor BSP.
++ * Uses no termination resistor (term=0x0000) which may improve
++ * DDC I2C reliability for EDID reads on some displays.
++ */
++static const struct dw_hdmi_phy_config rk3568_phy_config[] = {
++	/*pixelclk   symbol   term   vlev*/
++	{ 92812500,  0x8009, 0x0000, 0x0270},
++	{ 165000000, 0x800b, 0x0000, 0x026d},
++	{ 185625000, 0x800b, 0x0000, 0x01ed},
++	{ 297000000, 0x800b, 0x0000, 0x01ad},
++	{ 594000000, 0x8029, 0x0000, 0x0088},
++	{ ~0UL,      0x0000, 0x0000, 0x0000}
++};
++
+ static int rockchip_hdmi_parse_dt(struct rockchip_hdmi *hdmi)
+ {
+ 	struct device_node *np = hdmi->dev->of_node;
+@@ -531,7 +546,7 @@ static const struct dw_hdmi_plat_data rk3568_hdmi_drv_data = {
+ 	.mode_valid = dw_hdmi_rockchip_mode_valid,
+ 	.mpll_cfg   = rockchip_mpll_cfg,
+ 	.cur_ctr    = rockchip_cur_ctr,
+-	.phy_config = rockchip_phy_config,
++	.phy_config = rk3568_phy_config,
+ 	.phy_data = &rk3568_chip_data,
+ 	.use_drm_infoframe = true,
+ };
+--
+2.43.0
