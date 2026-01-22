@@ -255,16 +255,16 @@ jobs:
         run: ./scripts/setup-build-env.sh
 
       - name: Build U-Boot
-        run: ./scripts/build-uboot.sh ${{ matrix.board }}
+        run: ./scripts/build/uboot.sh ${{ matrix.board }} build
 
       - name: Build Kernel
-        run: ./scripts/build-kernel.sh ${{ matrix.board }}
+        run: ./scripts/build/kernel.sh ${{ matrix.board }} build
 
       - name: Build Rootfs
-        run: sudo ./scripts/build-rootfs.sh ${{ matrix.board }}
+        run: ./scripts/build/rootfs.sh ${{ matrix.board }} build
 
       - name: Assemble Image
-        run: sudo ./scripts/assemble-image.sh ${{ matrix.board }}
+        run: sudo ./scripts/device/assemble.sh ${{ matrix.board }} build
 
       - name: Run Tests
         run: ./scripts/verify-image.sh

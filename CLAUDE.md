@@ -4,8 +4,8 @@
 
 Debian-based build system with modular scripts. Each script can run standalone or through the orchestrator.
 
-- **Documentation:** See [README-DEBIAN-BUILD.md](README-DEBIAN-BUILD.md)
-- **Quick Start:** `./build.sh sz3568-v1.2` (interactive) or `./build.sh --auto sz3568-v1.2`
+- **Documentation:** See [HOW-TO-BUILD.md](HOW-TO-BUILD.md)
+- **Quick Start:** `./scripts/build.sh sz3568-v1.2` (interactive) or `./scripts/build.sh --auto sz3568-v1.2`
 
 ## Supported Boards
 
@@ -22,18 +22,18 @@ Boards are defined in `boards/*/board.conf`:
 
 ```bash
 # Interactive build (recommended)
-./build.sh sz3568-v1.2
+./scripts/build.sh sz3568-v1.2
 
 # Auto mode: build missing, flash to SD
-./build.sh --auto --device /dev/sdX sz3568-v1.2
+./scripts/build.sh --auto --device /dev/sdX sz3568-v1.2
 
 # Clean all artifacts
-./build.sh --clean sz3568-v1.2
+./scripts/build.sh --clean sz3568-v1.2
 
 # Build specific stage only
-./build.sh --kernel-only sz3568-v1.2
-./build.sh --rootfs-only sz3568-v1.2
-./build.sh --image-only sz3568-v1.2
+./scripts/build.sh --kernel-only sz3568-v1.2
+./scripts/build.sh --rootfs-only sz3568-v1.2
+./scripts/build.sh --image-only sz3568-v1.2
 ```
 
 ### Standalone Scripts (for direct control)
@@ -138,7 +138,7 @@ This ensures consistent MAC across reboots without hardcoding.
 ## Workflow
 
 1. **Modify config** - Edit files in `external/custom/` or `boards/`
-2. **Build** - `./build.sh sz3568-v1.2` (or standalone scripts)
+2. **Build** - `./scripts/build.sh sz3568-v1.2` (or standalone scripts)
 3. **Test** - Flash to SD card or eMMC
 4. **Commit** - All changes tracked in git
 5. **Repeat**
@@ -149,7 +149,7 @@ This ensures consistent MAC across reboots without hardcoding.
 |---------|-------|-----|
 | "Failed to reset the dma" | PHY clock not stable | Ensure maxio driver patch applied |
 | Patches not applying | Stale build artifacts | `./scripts/build/kernel.sh <board> clean` |
-| Docker path errors | Mixed Docker/native builds | `./build.sh --clean <board>` |
+| Docker path errors | Mixed Docker/native builds | `./scripts/build.sh --clean <board>` |
 | Missing rkbin blobs | Submodule not initialized | `git submodule update --init --recursive` |
 
 ## Kernel Config

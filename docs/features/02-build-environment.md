@@ -351,7 +351,7 @@ dmesg | grep -i fail
 - `logs/kernel-build.log` - Build output
 - `logs/kernel-boot.log` - Boot log with custom kernel
 - `logs/kernel-dmesg.log` - Kernel messages
-- `scripts/build-kernel.sh` - Automated build script
+- `scripts/build/kernel.sh` - Automated build script
 - `reference/vendor-kernel-patches.md` - Documentation of vendor patches
 
 ---
